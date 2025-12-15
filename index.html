@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Chult Hunter Logbook</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,7 +17,6 @@
         }
     </script>
     <script type="module" src="https://esm.sh/run" defer></script>
-
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
@@ -29,8 +28,24 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        
         body {
             background-color: #0c0a09; /* stone-950 */
+            /* iOS Specific: Prevent pull-to-refresh on body to feel more like an app */
+            overscroll-behavior-y: none;
+            /* iOS Specific: Smooth scrolling */
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* iOS Specific: Remove gray tap highlight */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Prevent text selection on UI elements for app-feel */
+        .select-none {
+            -webkit-user-select: none;
+            user-select: none;
         }
     </style>
 </head>
@@ -43,7 +58,8 @@
         import { 
             Skull, Map, Tent, Droplets, Flame, Wind, Sword, Backpack, 
             Scroll, Target, Menu, X, Bone, Search, AlertTriangle, 
-            Compass, Shield, Heart, Zap, Check, Beaker, Plus, Trash2, PenTool 
+            Compass, Shield, Heart, Zap, Check, Beaker, Plus, Trash2, PenTool,
+            History 
         } from 'lucide-react';
 
         // --- DATA LISTS ---
@@ -67,6 +83,14 @@
             { name: "Grung Ambush", type: "Combat", desc: "A net trap springs! 2d4 Grung watch from the trees with poisoned blowguns." },
             { name: "Aarakocra Patrol", type: "Social", desc: "Birdfolk from Kir Sabal. They warn of a larger threat nearby." },
             { name: "Artus Cimber (Rare)", type: "Special", desc: "A man with a glowing ring and a lizardfolk companion (Dragonbait) are camping nearby." }
+        ];
+
+        const CHANGELOG_DATA = [
+            { version: "1.4", date: "Latest", title: "Local Storage Support", changes: ["Homebrew Bestiary saves to browser", "Homebrew Armory saves to browser", "Data persists between sessions"] },
+            { version: "1.3", date: "Previous", title: "Mobile & iOS Support", changes: ["Added responsive layout for iPhone/iPad", "Touch-friendly buttons & spacing", "Prevented auto-zoom on inputs", "Added app-like overscroll behavior"] },
+            { version: "1.2", date: "Previous", title: "Chultbrew & Tools", changes: ["Added Homebrew Bestiary & Armory", "Interactive Tracking Clues", "Added Random Encounter Generator"] },
+            { version: "1.1", date: "Previous", title: "Monster Hunter Expansion", changes: ["Added Ancient Forest Roster", "Added 5e Stat Blocks toggle", "Refined Loot Tables"] },
+            { version: "1.0", date: "Initial", title: "Port Nyanzaru Release", changes: ["Expedition Tracker", "Hunt Board", "Carving Station"] }
         ];
 
         const ANCIENT_FOREST_ROSTER = {
@@ -186,7 +210,7 @@
         );
 
         const Button = ({ onClick, children, variant = "primary", className = "" }) => {
-            const baseStyle = "px-4 py-2 rounded font-bold transition-all duration-200 flex items-center justify-center gap-2";
+            const baseStyle = "px-4 py-3 md:py-2 rounded font-bold transition-all duration-200 flex items-center justify-center gap-2 select-none touch-manipulation active:scale-[0.98]";
             const variants = {
             primary: "bg-amber-700 hover:bg-amber-600 text-stone-100 shadow-md border-b-4 border-amber-900 active:border-b-0 active:translate-y-1",
             secondary: "bg-stone-700 hover:bg-stone-600 text-stone-200 border border-stone-600",
@@ -205,20 +229,20 @@
             <div className="absolute top-0 left-0 w-full h-2 bg-red-800/80"></div>
             <div className="grid grid-cols-3 gap-4 text-center mb-4 pt-4 border-b border-red-800/20 pb-4">
                 <div>
-                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Armor Class</div>
+                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">AC</div>
                 <div className="text-xl font-bold flex items-center justify-center gap-1">
                     <Shield size={16} className="text-stone-400" /> {stats.ac}
                 </div>
                 </div>
                 <div>
-                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Hit Points</div>
+                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">HP</div>
                 <div className="text-xl font-bold flex items-center justify-center gap-1">
-                    <Heart size={16} className="text-red-600" /> {stats.hp}
+                    <Heart size={16} className="text-red-600" /> {stats.hp.split(' ')[0]}
                 </div>
                 </div>
                 <div>
-                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Speed</div>
-                <div className="text-xl font-bold">{stats.speed}</div>
+                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Spd</div>
+                <div className="text-xl font-bold">{stats.speed.split(',')[0]}</div>
                 </div>
             </div>
 
@@ -244,6 +268,30 @@
         );
 
         // --- SUB-SCREENS ---
+
+        const ChangelogScreen = () => (
+            <div className="space-y-6">
+                <h2 className="text-2xl font-serif text-stone-200 mb-4 px-2">Logbook Updates</h2>
+                <div className="space-y-4">
+                    {CHANGELOG_DATA.map((log, idx) => (
+                        <Card key={idx} className="relative overflow-hidden group">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 className="text-amber-500 font-bold text-lg">{log.title}</h3>
+                                    <span className="text-stone-500 text-xs font-mono">v{log.version} • {log.date}</span>
+                                </div>
+                                {idx === 0 && <span className="bg-amber-900/30 text-amber-200 text-xs px-2 py-1 rounded border border-amber-900/50">Latest</span>}
+                            </div>
+                            <ul className="list-disc list-inside text-stone-400 text-sm space-y-1 ml-1">
+                                {log.changes.map((change, i) => (
+                                    <li key={i}>{change}</li>
+                                ))}
+                            </ul>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        );
 
         const ExpeditionScreen = () => {
             const [day, setDay] = useState(1);
@@ -274,9 +322,9 @@
                     <span className="text-6xl font-black text-amber-500 font-serif">{day}</span>
                     <div className="flex gap-4 mt-6">
                     <Button onClick={() => setHexes(h => Math.max(0, h - 1))} variant="secondary">- Hex</Button>
-                    <div className="text-center">
+                    <div className="text-center min-w-[80px]">
                         <div className="text-2xl font-bold text-stone-200">{hexes}</div>
-                        <div className="text-xs text-stone-500">Hexes Traveled</div>
+                        <div className="text-xs text-stone-500">Hexes</div>
                     </div>
                     <Button onClick={() => setHexes(h => h + 1)} variant="secondary">+ Hex</Button>
                     </div>
@@ -297,19 +345,20 @@
                         <p className="text-stone-400 text-sm mt-1 leading-relaxed">{weather.desc}</p>
                     </div>
                     </div>
-                    <div className="mt-6 pt-4 border-t border-stone-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="mt-6 pt-4 border-t border-stone-800 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1">
                         <input 
                         type="checkbox" 
                         checked={water} 
                         onChange={() => setWater(!water)}
-                        className="w-5 h-5 accent-blue-500 bg-stone-800 border-stone-600 rounded" 
+                        id="water-check"
+                        className="w-6 h-6 accent-blue-500 bg-stone-800 border-stone-600 rounded touch-manipulation" 
                         />
-                        <span className={`text-sm ${water ? 'text-blue-400' : 'text-red-400'}`}>
-                        {water ? "Party has consumed water" : "Water NOT consumed today"}
-                        </span>
+                        <label htmlFor="water-check" className={`text-sm ${water ? 'text-blue-400' : 'text-red-400'}`}>
+                        {water ? "Water Consumed" : "Water NOT consumed"}
+                        </label>
                     </div>
-                    <Button onClick={advanceDay} variant="primary" className="text-sm">Long Rest (Next Day)</Button>
+                    <Button onClick={advanceDay} variant="primary" className="text-sm">Long Rest</Button>
                     </div>
                 </Card>
                 </div>
@@ -321,14 +370,14 @@
                     <Skull size={16} /> Random Encounters
                     </h2>
                     <Button onClick={rollEncounter} variant="secondary" className="text-xs h-8">
-                    Roll Encounter (1d10)
+                    Roll (1d10)
                     </Button>
                 </div>
                 
                 {randomEvent ? (
                     <div className="animate-in fade-in slide-in-from-left-2">
-                    <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-bold text-stone-200">{randomEvent.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-lg md:text-xl font-bold text-stone-200">{randomEvent.name}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded border ${
                         randomEvent.type.includes('Combat') ? 'bg-red-900/30 text-red-300 border-red-900/50' : 
                         randomEvent.type.includes('Social') ? 'bg-blue-900/30 text-blue-300 border-blue-900/50' :
@@ -396,12 +445,12 @@
 
             return (
             <div className="space-y-6">
-                <div className="flex gap-2 overflow-x-auto pb-2">
+                <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
                 {Object.keys(ANCIENT_FOREST_ROSTER).map(b => (
                     <button
                     key={b}
                     onClick={() => setBiome(b)}
-                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
+                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
                         biome === b 
                         ? 'bg-amber-600 text-white' 
                         : 'bg-stone-800 text-stone-400 hover:bg-stone-700'
@@ -414,7 +463,7 @@
 
                 <div className="text-center py-4">
                 <Button onClick={generateContract} className="w-full md:w-auto mx-auto px-8 py-4 text-lg">
-                    <Search size={20} /> Scout Area for Monsters
+                    <Search size={20} /> Scout Area
                 </Button>
                 </div>
 
@@ -467,20 +516,20 @@
                             <button 
                             key={idx} 
                             onClick={() => toggleClue(idx)}
-                            className={`w-full flex gap-4 items-start p-3 rounded transition-all border text-left group ${
+                            className={`w-full flex gap-4 items-start p-3 rounded transition-all border text-left group touch-manipulation active:scale-[0.99] ${
                                 foundClues[idx] 
                                 ? 'bg-amber-900/20 border-amber-800/50' 
                                 : 'bg-transparent border-transparent hover:bg-stone-800 hover:border-stone-700'
                             }`}
                             >
-                            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs border transition-colors ${
+                            <div className={`flex-shrink-0 w-8 h-8 md:w-6 md:h-6 rounded-full flex items-center justify-center text-sm md:text-xs border transition-colors ${
                                 foundClues[idx]
                                 ? 'bg-amber-600 text-stone-900 border-amber-600'
                                 : 'bg-stone-800 text-stone-500 border-stone-600 group-hover:border-stone-500'
                             }`}>
                                 {foundClues[idx] ? <Check size={14} /> : idx + 1}
                             </div>
-                            <p className={`text-sm transition-colors ${foundClues[idx] ? 'text-amber-100/70 line-through' : 'text-stone-300'}`}>
+                            <p className={`text-sm py-1 transition-colors ${foundClues[idx] ? 'text-amber-100/70 line-through' : 'text-stone-300'}`}>
                                 {clue}
                             </p>
                             </button>
@@ -491,8 +540,8 @@
                         }`}>
                         <p className={`text-sm ${allCluesFound ? 'text-green-300' : 'text-amber-200'}`}>
                             {allCluesFound 
-                            ? <span className="font-bold flex items-center justify-center gap-2"><Target size={16}/> PREY LOCATED! Party has Advantage on round 1 or Surprise.</span>
-                            : <span><span className="font-bold">DM Tip:</span> Finding all 3 signs grants Advantage on the first round of combat.</span>
+                            ? <span className="font-bold flex items-center justify-center gap-2 flex-wrap"><Target size={16}/> PREY LOCATED! Advantage on Round 1.</span>
+                            : <span><span className="font-bold">DM Tip:</span> Find all 3 signs for Advantage.</span>
                             }
                         </p>
                         </div>
@@ -535,7 +584,7 @@
                     <button
                         key={type}
                         onClick={() => setSelectedType(type)}
-                        className={`p-2 rounded text-sm border transition-all ${
+                        className={`p-3 md:p-2 rounded text-sm border transition-all ${
                         selectedType === type 
                         ? 'bg-amber-900/50 border-amber-600 text-amber-100' 
                         : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-750'
@@ -580,13 +629,39 @@
         const ChultbrewScreen = () => {
             const [subTab, setSubTab] = useState('enemies');
             
-            // Local state for the session
-            const [customEnemies, setCustomEnemies] = useState([
-            { name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }
-            ]);
-            const [customItems, setCustomItems] = useState([
-            { name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }
-            ]);
+            // Lazy initialization for localStorage
+            const [customEnemies, setCustomEnemies] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('chult_custom_enemies');
+                    return saved ? JSON.parse(saved) : [
+                        { name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }
+                    ];
+                } catch (e) {
+                    console.error("Failed to load enemies from local storage", e);
+                    return [{ name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }];
+                }
+            });
+
+            const [customItems, setCustomItems] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('chult_custom_items');
+                    return saved ? JSON.parse(saved) : [
+                        { name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }
+                    ];
+                } catch (e) {
+                    console.error("Failed to load items from local storage", e);
+                    return [{ name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }];
+                }
+            });
+
+            // Effects to save data
+            useEffect(() => {
+                localStorage.setItem('chult_custom_enemies', JSON.stringify(customEnemies));
+            }, [customEnemies]);
+
+            useEffect(() => {
+                localStorage.setItem('chult_custom_items', JSON.stringify(customItems));
+            }, [customItems]);
 
             // Form states
             const [enemyForm, setEnemyForm] = useState({ name: '', cr: '', type: 'Beast', notes: '' });
@@ -612,19 +687,19 @@
                 <div className="flex gap-2 border-b border-stone-800 pb-2">
                 <button 
                     onClick={() => setSubTab('enemies')}
-                    className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors ${
+                    className={`flex-1 px-4 py-3 md:py-2 font-bold text-sm rounded-t-lg transition-colors ${
                     subTab === 'enemies' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'
                     }`}
                 >
-                    <div className="flex items-center gap-2"><Skull size={16}/> Bestiary</div>
+                    <div className="flex items-center justify-center gap-2"><Skull size={16}/> Bestiary</div>
                 </button>
                 <button 
                     onClick={() => setSubTab('items')}
-                    className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors ${
+                    className={`flex-1 px-4 py-3 md:py-2 font-bold text-sm rounded-t-lg transition-colors ${
                     subTab === 'items' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'
                     }`}
                 >
-                    <div className="flex items-center gap-2"><Shield size={16}/> Armory</div>
+                    <div className="flex items-center justify-center gap-2"><Shield size={16}/> Armory</div>
                 </button>
                 </div>
 
@@ -637,20 +712,20 @@
                     </h3>
                     <div className="space-y-3">
                         <input 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
-                        placeholder="Name (e.g., Eblis Prophet)"
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
+                        placeholder="Name"
                         value={enemyForm.name}
                         onChange={e => setEnemyForm({...enemyForm, name: e.target.value})}
                         />
                         <div className="flex gap-2">
                         <input 
-                            className="w-1/3 bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                            className="w-1/3 bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
                             placeholder="CR"
                             value={enemyForm.cr}
                             onChange={e => setEnemyForm({...enemyForm, cr: e.target.value})}
                         />
                         <select 
-                            className="w-2/3 bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                            className="w-2/3 bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
                             value={enemyForm.type}
                             onChange={e => setEnemyForm({...enemyForm, type: e.target.value})}
                         >
@@ -658,7 +733,7 @@
                         </select>
                         </div>
                         <textarea 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
                         placeholder="Short notes/abilities..."
                         value={enemyForm.notes}
                         onChange={e => setEnemyForm({...enemyForm, notes: e.target.value})}
@@ -680,7 +755,7 @@
                             </div>
                             <p className="text-stone-400 text-sm italic">{enemy.notes}</p>
                         </div>
-                        <button onClick={() => removeEnemy(idx)} className="text-stone-600 hover:text-red-500 transition-colors">
+                        <button onClick={() => removeEnemy(idx)} className="text-stone-600 hover:text-red-500 transition-colors p-2">
                             <Trash2 size={16} />
                         </button>
                         </div>
@@ -696,20 +771,20 @@
                     </h3>
                     <div className="space-y-3">
                         <input 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
-                        placeholder="Name (e.g., Batiri Mask)"
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
+                        placeholder="Name"
                         value={itemForm.name}
                         onChange={e => setItemForm({...itemForm, name: e.target.value})}
                         />
                         <select 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
                         value={itemForm.type}
                         onChange={e => setItemForm({...itemForm, type: e.target.value})}
                         >
                         {["Weapon", "Armor", "Potion", "Wondrous Item", "Material"].map(t => <option key={t}>{t}</option>)}
                         </select>
                         <textarea 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
                         placeholder="Effect/Description..."
                         value={itemForm.effect}
                         onChange={e => setItemForm({...itemForm, effect: e.target.value})}
@@ -730,7 +805,7 @@
                             </div>
                             <p className="text-stone-300 text-sm">{item.effect}</p>
                         </div>
-                        <button onClick={() => removeItem(idx)} className="text-stone-600 hover:text-red-500 transition-colors">
+                        <button onClick={() => removeItem(idx)} className="text-stone-600 hover:text-red-500 transition-colors p-2">
                             <Trash2 size={16} />
                         </button>
                         </div>
@@ -753,6 +828,7 @@
             { id: 'hunt', icon: <Target size={18} />, label: 'The Hunt' },
             { id: 'carving', icon: <Sword size={18} />, label: 'Carving' },
             { id: 'chultbrew', icon: <Beaker size={18} />, label: 'Chultbrew' },
+            { id: 'updates', icon: <History size={18} />, label: 'Updates' },
             ];
 
             return (
@@ -760,19 +836,35 @@
                 {/* Mobile Header */}
                 <div className="md:hidden flex items-center justify-between p-4 bg-stone-900 border-b border-stone-800 sticky top-0 z-20 w-full">
                 <h1 className="text-amber-500 font-bold font-serif tracking-wider">CHULT HUNTER</h1>
-                <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 text-stone-400">
-                    {isSidebarOpen ? <X /> : <Menu />}
+                <button onClick={() => setSidebarOpen(true)} className="p-2 text-stone-400 hover:text-stone-200 active:scale-95 transition-transform">
+                    <Menu size={24} />
                 </button>
                 </div>
 
+                {/* Mobile Sidebar Overlay */}
+                {isSidebarOpen && (
+                    <div 
+                        className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm transition-opacity"
+                        onClick={() => setSidebarOpen(false)}
+                    ></div>
+                )}
+
                 {/* Sidebar Navigation */}
                 <aside className={`
-                    fixed inset-y-0 left-0 z-10 w-64 bg-stone-900 border-r border-stone-800 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-screen
-                    ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                    fixed inset-y-0 left-0 z-40 w-72 bg-stone-900 border-r border-stone-800 
+                    transform transition-transform duration-300 ease-out md:translate-x-0 md:static md:h-screen md:w-64
+                    ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
                 `}>
-                    <div className="p-6 hidden md:block">
-                    <h1 className="text-2xl font-black font-serif text-amber-500 tracking-wider">NYANZARU<br/>LOGBOOK</h1>
-                    <p className="text-xs text-stone-500 mt-2 uppercase tracking-widest">Monster Hunter Division</p>
+                    <div className="p-6">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h1 className="text-2xl font-black font-serif text-amber-500 tracking-wider">NYANZARU<br/>LOGBOOK</h1>
+                                <p className="text-xs text-stone-500 mt-2 uppercase tracking-widest">Monster Hunter Division</p>
+                            </div>
+                            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-stone-400 p-2 hover:text-stone-200 active:scale-95 transition-transform">
+                                <X size={24} />
+                            </button>
+                        </div>
                     </div>
 
                     <nav className="px-4 space-y-2 mt-4">
@@ -780,19 +872,19 @@
                         <button
                         key={item.id}
                         onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                        className={`w-full flex items-center gap-4 px-4 py-4 md:py-3 rounded-lg transition-all duration-200 ${
                             activeTab === item.id 
                             ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50' 
                             : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'
                         }`}
                         >
                         {item.icon}
-                        <span className="font-bold text-sm">{item.label}</span>
+                        <span className="font-bold text-base md:text-sm">{item.label}</span>
                         </button>
                     ))}
                     </nav>
                     
-                    <div className="absolute bottom-0 left-0 w-full p-4 border-t border-stone-800">
+                    <div className="absolute bottom-0 left-0 w-full p-4 border-t border-stone-800 bg-stone-900">
                     <div className="flex items-center gap-3 text-xs text-stone-500">
                         <Backpack size={16} />
                         <span>Inventory Cap: <span className="text-stone-300">Light</span></span>
@@ -802,11 +894,12 @@
 
                 {/* Main Content Area */}
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-65px)] md:h-screen scrollbar-hide w-full">
-                    <div className="max-w-4xl mx-auto">
+                    <div className="max-w-4xl mx-auto pb-20 md:pb-0">
                     {activeTab === 'expedition' && <ExpeditionScreen />}
                     {activeTab === 'hunt' && <HuntScreen />}
                     {activeTab === 'carving' && <CarvingScreen />}
                     {activeTab === 'chultbrew' && <ChultbrewScreen />}
+                    {activeTab === 'updates' && <ChangelogScreen />}
                     </div>
                 </main>
             </div>
