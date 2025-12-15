@@ -86,11 +86,11 @@
         ];
 
         const CHANGELOG_DATA = [
-            { version: "1.4", date: "Latest", title: "Local Storage Support", changes: ["Homebrew Bestiary saves to browser", "Homebrew Armory saves to browser", "Data persists between sessions"] },
+            { version: "1.5", date: "Latest", title: "Complete Roster", changes: ["Added normal Chult monsters (T-Rex, Raptors, etc.)", "Added 'Ruins' biome to Hunt Board", "Integrated 5e stats for all new monsters"] },
+            { version: "1.4", date: "Previous", title: "Local Storage Support", changes: ["Homebrew Bestiary saves to browser", "Homebrew Armory saves to browser", "Data persists between sessions"] },
             { version: "1.3", date: "Previous", title: "Mobile & iOS Support", changes: ["Added responsive layout for iPhone/iPad", "Touch-friendly buttons & spacing", "Prevented auto-zoom on inputs", "Added app-like overscroll behavior"] },
             { version: "1.2", date: "Previous", title: "Chultbrew & Tools", changes: ["Added Homebrew Bestiary & Armory", "Interactive Tracking Clues", "Added Random Encounter Generator"] },
-            { version: "1.1", date: "Previous", title: "Monster Hunter Expansion", changes: ["Added Ancient Forest Roster", "Added 5e Stat Blocks toggle", "Refined Loot Tables"] },
-            { version: "1.0", date: "Initial", title: "Port Nyanzaru Release", changes: ["Expedition Tracker", "Hunt Board", "Carving Station"] }
+            { version: "1.1", date: "Initial", title: "Monster Hunter Expansion", changes: ["Added Ancient Forest Roster", "Added 5e Stat Blocks toggle", "Refined Loot Tables"] }
         ];
 
         const ANCIENT_FOREST_ROSTER = {
@@ -110,6 +110,20 @@
                 }
             },
             { 
+                name: "Velociraptor Pack", 
+                type: "Tiny Beast", 
+                cr: "1/4", 
+                traits: "Pack Tactics, Ambush",
+                stats: {
+                ac: 13, hp: "10 (3d4 + 3)", speed: "30 ft.",
+                str: 6, dex: 14, con: 13, int: 4, wis: 12, cha: 6,
+                actions: [
+                    { name: "Multiattack", desc: "Two attacks: one with bite, one with claws." },
+                    { name: "Bite", desc: "+4 to hit. Hit: 5 (1d6 + 2) piercing damage." }
+                ]
+                }
+            },
+            { 
                 name: "Great Jagras", 
                 type: "Large Monstrosity", 
                 cr: "2", 
@@ -121,6 +135,49 @@
                     { name: "Multiattack", desc: "The Great Jagras makes two attacks: one with its bite and one with its claws." },
                     { name: "Bite", desc: "+5 to hit, reach 5 ft. Hit: 10 (2d6 + 3) piercing damage. If target is Medium or smaller, it is grappled (escape DC 13)." },
                     { name: "Swallow", desc: "The Jagras makes a bite attack against a grappled creature. If hit, the creature is swallowed. Swallowed creature is blinded/restrained and takes 7 (2d6) acid damage at start of Jagras' turn." }
+                ]
+                }
+            },
+            { 
+                name: "Kamadan", 
+                type: "Large Monstrosity", 
+                cr: "4", 
+                traits: "Sleep Breath, Snakes",
+                stats: {
+                ac: 13, hp: "67 (9d10 + 18)", speed: "30 ft.",
+                str: 16, dex: 16, con: 14, int: 3, wis: 14, cha: 7,
+                actions: [
+                    { name: "Multiattack", desc: "Two attacks: one with bite/snakes, one with claws." },
+                    { name: "Sleep Breath (Recharge 5-6)", desc: "30ft cone. DC 12 CON save or unconscious for 10 mins." }
+                ]
+                }
+            },
+            { 
+                name: "Girallon", 
+                type: "Large Monstrosity", 
+                cr: "4", 
+                traits: "Aggressive, Climb",
+                stats: {
+                ac: 13, hp: "59 (7d10 + 21)", speed: "40 ft., climb 40 ft.",
+                str: 18, dex: 16, con: 16, int: 5, wis: 12, cha: 7,
+                actions: [
+                    { name: "Multiattack", desc: "Five attacks: one bite, four claws." },
+                    { name: "Rend", desc: "If the girallon hits with two or more claw attacks, target takes extra 11 (2d10) damage." }
+                ]
+                }
+            },
+            { 
+                name: "Zombie T-Rex", 
+                type: "Huge Undead", 
+                cr: "8", 
+                traits: "Vomit Zombies, Stench",
+                stats: {
+                ac: 14, hp: "136 (13d12 + 52)", speed: "40 ft.",
+                str: 25, dex: 6, con: 19, int: 2, wis: 8, cha: 5,
+                actions: [
+                    { name: "Multiattack", desc: "One bite attack." },
+                    { name: "Bite", desc: "+10 to hit. Hit: 33 (4d12 + 7) piercing. Grappled (escape DC 17)." },
+                    { name: "Vomit Zombies (Recharge 6)", desc: "Spews 1d4 zombies into unoccupied spaces within 10 ft." }
                 ]
                 }
             }
@@ -138,6 +195,20 @@
                     { name: "Multiattack", desc: "Makes two tail attacks." },
                     { name: "Electrified Tail", desc: "+7 to hit, reach 10 ft. Hit: 8 (1d8 + 4) bludgeoning plus 9 (2d8) lightning damage. Target must succeed DC 14 CON save or be Stunned until end of next turn." },
                     { name: "Static Build Up", desc: "Bonus Action. Tobi-Kadachi moves up to its speed without provoking opportunity attacks. Its next attack deals max lightning damage." }
+                ]
+                }
+            },
+            { 
+                name: "Su-Monster", 
+                type: "Medium Monstrosity", 
+                cr: "1", 
+                traits: "Psychic Crush, Hanging",
+                stats: {
+                ac: 12, hp: "27 (5d8 + 5)", speed: "30 ft., climb 30 ft.",
+                str: 14, dex: 15, con: 12, int: 9, wis: 11, cha: 9,
+                actions: [
+                    { name: "Multiattack", desc: "Two attacks: one bite, one claws." },
+                    { name: "Psychic Crush (Recharge 5-6)", desc: "Target within 30ft. DC 12 WIS save or 17 (3d8+4) psychic damage and stunned." }
                 ]
                 }
             },
@@ -160,6 +231,47 @@
             ],
             "River": [
             { 
+                name: "Plesiosaurus", 
+                type: "Large Beast", 
+                cr: "2", 
+                traits: "Hold Breath, Bite",
+                stats: {
+                ac: 13, hp: "68 (8d10 + 24)", speed: "20 ft., swim 40 ft.",
+                str: 18, dex: 15, con: 16, int: 2, wis: 12, cha: 5,
+                actions: [
+                    { name: "Bite", desc: "+6 to hit, reach 10 ft. Hit: 14 (3d6 + 4) piercing damage." }
+                ]
+                }
+            },
+            { 
+                name: "Aldani (Lobsterfolk)", 
+                type: "Medium Monstrosity", 
+                cr: "1", 
+                traits: "Diplomatic, Grapple",
+                stats: {
+                ac: 14, hp: "49 (9d8 + 9)", speed: "30 ft., swim 30 ft.",
+                str: 13, dex: 10, con: 12, int: 10, wis: 14, cha: 10,
+                actions: [
+                    { name: "Multiattack", desc: "Two claw attacks." },
+                    { name: "Claw", desc: "+3 to hit. Hit: 6 (1d10 + 1) slashing. Target is grappled (escape DC 11)." }
+                ]
+                }
+            },
+            { 
+                name: "Giant Crocodile", 
+                type: "Huge Beast", 
+                cr: "5", 
+                traits: "Stealth, Hold Breath",
+                stats: {
+                ac: 14, hp: "85 (9d12 + 27)", speed: "30 ft., swim 50 ft.",
+                str: 21, dex: 9, con: 17, int: 2, wis: 10, cha: 7,
+                actions: [
+                    { name: "Multiattack", desc: "Two attacks: one bite, one tail." },
+                    { name: "Bite", desc: "+8 to hit. Hit: 21 (3d10 + 5) piercing. Target is grappled (escape DC 16)." }
+                ]
+                }
+            },
+            { 
                 name: "Anjanath", 
                 type: "Huge Monstrosity", 
                 cr: "9", 
@@ -172,6 +284,81 @@
                     { name: "Bite", desc: "+10 to hit, reach 10 ft. Hit: 25 (3d12 + 6) piercing damage." },
                     { name: "Flame Breath (Recharge 5-6)", desc: "30ft cone. DC 16 DEX save. 42 (12d6) fire damage. Can only be used when Enraged (below half HP)." },
                     { name: "Aggressive Charge", desc: "Bonus Action. Move up to speed towards a hostile creature." }
+                ]
+                }
+            },
+            { 
+                name: "Sarcosuchus", 
+                type: "Gargantuan Beast", 
+                cr: "7", 
+                traits: "Death Roll, Ambush",
+                stats: {
+                ac: 15, hp: "137 (11d20 + 22)", speed: "40 ft., swim 50 ft.",
+                str: 23, dex: 10, con: 18, int: 2, wis: 10, cha: 7,
+                actions: [
+                    { name: "Bite", desc: "+9 to hit. Hit: 28 (4d10 + 6) piercing. Restrained (escape DC 17)." },
+                    { name: "Death Roll", desc: "Bonus Action against restrained target. 22 (4d10) bludgeoning damage." }
+                ]
+                }
+            }
+            ],
+            "Ruins": [
+            { 
+                name: "Batiri Goblin Stack", 
+                type: "Medium Humanoid", 
+                cr: "1/2", 
+                traits: "Battle Stack, Madness",
+                stats: {
+                ac: 15, hp: "30 (stack of 4)", speed: "30 ft.",
+                str: 10, dex: 14, con: 10, int: 10, wis: 8, cha: 8,
+                actions: [
+                    { name: "Multiattack", desc: "Makes as many attacks as goblins in stack." },
+                    { name: "Spear", desc: "+4 to hit. Hit: 5 (1d6 + 2) piercing damage." },
+                    { name: "Topple", desc: "If the stack takes 10+ damage in one turn, DC 10 DEX save or collapse." }
+                ]
+                }
+            },
+            { 
+                name: "Yuan-ti Malison", 
+                type: "Medium Monstrosity", 
+                cr: "3", 
+                traits: "Shapechanger, Magic Res",
+                stats: {
+                ac: 12, hp: "66 (12d8 + 12)", speed: "30 ft.",
+                str: 16, dex: 14, con: 13, int: 14, wis: 12, cha: 16,
+                actions: [
+                    { name: "Multiattack", desc: "Two scimitar or longbow attacks." },
+                    { name: "Scimitar", desc: "+5 to hit. Hit: 6 (1d6 + 3) slashing + 7 (2d6) poison." },
+                    { name: "Suggestion", desc: "Can cast Suggestion (DC 13) 3/day." }
+                ]
+                }
+            },
+            { 
+                name: "Yellow Musk Creeper", 
+                type: "Medium Plant", 
+                cr: "2", 
+                traits: "Zombify, Charm",
+                stats: {
+                ac: 5, hp: "60 (11d8 + 11)", speed: "5 ft., climb 5 ft.",
+                str: 12, dex: 1, con: 12, int: 1, wis: 10, cha: 3,
+                actions: [
+                    { name: "Touch", desc: "+3 to hit. Hit: 13 (3d8) psychic. DC 11 WIS save or Charmed." },
+                    { name: "Yellow Musk", desc: "A charmed humanoid reduced to 0 HP dies and becomes a Yellow Musk Zombie in 24h." }
+                ]
+                }
+            },
+            { 
+                name: "Stone Golem", 
+                type: "Large Construct", 
+                cr: "10", 
+                traits: "Slow, Magic Immunity",
+                stats: {
+                ac: 17, hp: "178 (17d10 + 85)", speed: "30 ft.",
+                str: 22, dex: 9, con: 20, int: 3, wis: 11, cha: 1,
+                actions: [
+                    { name: "Multiattack", desc: "Two slam attacks." },
+                    { name: "Slam", desc: "+10 to hit. Hit: 19 (3d8 + 6) bludgeoning." },
+                    { name: "Slow (Recharge 5-6)", desc: "10ft range. DC 17 WIS save or Slowed for 1 minute." }
                 ]
                 }
             }
