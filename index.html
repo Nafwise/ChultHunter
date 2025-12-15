@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chult Hunter Logbook</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+            }
+        }
+    </script>
+    <script type="module" src="https://esm.sh/run" defer></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Custom Scrollbar Hiding */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        body {
+            background-color: #0c0a09; /* stone-950 */
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Skull, Map, Tent, Droplets, Flame, Wind, Sword, Backpack, 
+            Scroll, Target, Menu, X, Bone, Search, AlertTriangle, 
+            Compass, Shield, Heart, Zap, Check, Beaker, Plus, Trash2, PenTool 
+        } from 'lucide-react';
+
+        // --- DATA LISTS ---
+
+        const WEATHER_EFFECTS = [
+            { name: "Sweltering Heat", icon: <Flame className="w-6 h-6 text-orange-500" />, desc: "CON save (DC 5 + days) or gain exhaustion. Water requirement doubled.", type: "heat" },
+            { name: "Tropical Storm", icon: <Droplets className="w-6 h-6 text-blue-500" />, desc: "Heavy rain disimposes Disadvantage on Perception. Extinguishes open flames.", type: "rain" },
+            { name: "Stagnant Mists", icon: <Wind className="w-6 h-6 text-gray-400" />, desc: "Visibility reduced to 60ft. Survival checks to navigate have Disadvantage.", type: "fog" },
+            { name: "Clear & Humid", icon: <Tent className="w-6 h-6 text-yellow-500" />, desc: "Normal travel pace possible. Insects are particularly biting today.", type: "clear" },
+            { name: "Ashfall", icon: <Skull className="w-6 h-6 text-gray-500" />, desc: "Ash from the Peaks of Flame. Constitution checks are made with Disadvantage.", type: "ash" }
+        ];
+
+        const RANDOM_ENCOUNTERS = [
+            { name: "Chwinga Sighting", type: "Social/Buff", desc: "A tiny elemental spirit observes the party. If treated well, grants a Charm (DMG p.228)." },
+            { name: "Undead Horde", type: "Combat", desc: "2d6 Zombies and 1d4 Ghouls rise from the mud." },
+            { name: "Emerald Enclave Scouts", type: "Social", desc: "3 Scouts (MM) led by a Druid. Can share map info or trade rations." },
+            { name: "Pterafolk Raid", type: "Combat", desc: "1d4+2 Pterafolk swoop down to steal shiny objects or food." },
+            { name: "Mad Monkey Mist", type: "Hazard", desc: "Blue mist drifts in. DC 13 CON save or contract Mad Monkey Fever." },
+            { name: "Statue of Ubtao", type: "Exploration", desc: "An overgrown maze-statue. Succeeding a DC 15 Religion/Investigation check reveals a hidden cache." },
+            { name: "Flaming Fist Patrol", type: "Social/Combat", desc: "A heavy patrol demands a 'Geography Tax' or a charter of exploration." },
+            { name: "Grung Ambush", type: "Combat", desc: "A net trap springs! 2d4 Grung watch from the trees with poisoned blowguns." },
+            { name: "Aarakocra Patrol", type: "Social", desc: "Birdfolk from Kir Sabal. They warn of a larger threat nearby." },
+            { name: "Artus Cimber (Rare)", type: "Special", desc: "A man with a glowing ring and a lizardfolk companion (Dragonbait) are camping nearby." }
+        ];
+
+        const ANCIENT_FOREST_ROSTER = {
+            "Floor": [
+            { 
+                name: "Jagras Pack", 
+                type: "Medium Beast", 
+                cr: "1/2", 
+                traits: "Pack Tactics, Swarm",
+                stats: {
+                ac: 12, hp: "22 (4d8 + 4)", speed: "30 ft.",
+                str: 12, dex: 15, con: 12, int: 3, wis: 12, cha: 6,
+                actions: [
+                    { name: "Bite", desc: "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage." },
+                    { name: "Swarm Tactics", desc: "The pack has advantage on an attack roll against a creature if at least one of the pack's allies is within 5 ft. of the creature." }
+                ]
+                }
+            },
+            { 
+                name: "Great Jagras", 
+                type: "Large Monstrosity", 
+                cr: "2", 
+                traits: "Swallow, Bloat Mode",
+                stats: {
+                ac: 13, hp: "52 (7d10 + 14)", speed: "40 ft.",
+                str: 16, dex: 14, con: 14, int: 3, wis: 12, cha: 6,
+                actions: [
+                    { name: "Multiattack", desc: "The Great Jagras makes two attacks: one with its bite and one with its claws." },
+                    { name: "Bite", desc: "+5 to hit, reach 5 ft. Hit: 10 (2d6 + 3) piercing damage. If target is Medium or smaller, it is grappled (escape DC 13)." },
+                    { name: "Swallow", desc: "The Jagras makes a bite attack against a grappled creature. If hit, the creature is swallowed. Swallowed creature is blinded/restrained and takes 7 (2d6) acid damage at start of Jagras' turn." }
+                ]
+                }
+            }
+            ],
+            "Canopy": [
+            { 
+                name: "Tobi-Kadachi", 
+                type: "Large Monstrosity", 
+                cr: "5", 
+                traits: "Static Charge, Glide",
+                stats: {
+                ac: 15, hp: "82 (11d10 + 22)", speed: "40 ft., climb 40 ft.",
+                str: 14, dex: 18, con: 14, int: 6, wis: 14, cha: 8,
+                actions: [
+                    { name: "Multiattack", desc: "Makes two tail attacks." },
+                    { name: "Electrified Tail", desc: "+7 to hit, reach 10 ft. Hit: 8 (1d8 + 4) bludgeoning plus 9 (2d8) lightning damage. Target must succeed DC 14 CON save or be Stunned until end of next turn." },
+                    { name: "Static Build Up", desc: "Bonus Action. Tobi-Kadachi moves up to its speed without provoking opportunity attacks. Its next attack deals max lightning damage." }
+                ]
+                }
+            },
+            { 
+                name: "Rathalos", 
+                type: "Huge Dragon", 
+                cr: "11", 
+                traits: "Flyby, Poison Talons",
+                stats: {
+                ac: 18, hp: "178 (17d12 + 68)", speed: "40 ft., fly 80 ft.",
+                str: 23, dex: 14, con: 19, int: 10, wis: 14, cha: 17,
+                actions: [
+                    { name: "Multiattack", desc: "One Bite, two Claws." },
+                    { name: "Bite", desc: "+10 to hit. Hit: 17 (2d10 + 6) piercing plus 7 (2d6) fire." },
+                    { name: "Poison Talons", desc: "+10 to hit. Hit: 13 (2d6 + 6) slashing. Target must succeed DC 16 CON save or be Poisoned for 1 minute." },
+                    { name: "Fireball Breath (Recharge 5-6)", desc: "150ft range, 20ft radius sphere. DC 17 DEX save. 49 (14d6) fire damage on fail, half on success." }
+                ]
+                }
+            }
+            ],
+            "River": [
+            { 
+                name: "Anjanath", 
+                type: "Huge Monstrosity", 
+                cr: "9", 
+                traits: "Aggressive, Enrage",
+                stats: {
+                ac: 15, hp: "147 (14d12 + 56)", speed: "50 ft.",
+                str: 22, dex: 12, con: 18, int: 4, wis: 12, cha: 7,
+                actions: [
+                    { name: "Multiattack", desc: "One Bite, one Tail." },
+                    { name: "Bite", desc: "+10 to hit, reach 10 ft. Hit: 25 (3d12 + 6) piercing damage." },
+                    { name: "Flame Breath (Recharge 5-6)", desc: "30ft cone. DC 16 DEX save. 42 (12d6) fire damage. Can only be used when Enraged (below half HP)." },
+                    { name: "Aggressive Charge", desc: "Bonus Action. Move up to speed towards a hostile creature." }
+                ]
+                }
+            }
+            ]
+        };
+
+        const MONSTER_PARTS = {
+            Beast: ["Thick Hide (AC craft)", "Sharp Fang (Dagger craft)", "Beast Heart (Potion)", "Adrenal Gland (Speed potion)", "Jagras Mane (Stealth gear)"],
+            Dragon: ["Draconic Scale (Resistance)", "Inferno Sac (Fire Weapon)", "Rath Wingtalon (Sword craft)", "Plate (Heavy Armor)", "Wyvern Gem (Rare Focus)"],
+            Monstrosity: ["Mutated Organ (Alchemy)", "Electro Sac (Lightning ammo)", "Toxic Sac (Poison)", "Strange Tentacle (Whip craft)", "Wyvern Gem (Rare Focus)"],
+        };
+
+        const DISEASES = [
+            { name: "Throat Leeches", desc: "Contaminated water. gain 1 level of exhaustion on failed CON save (DC 12) every 24h." },
+            { name: "Shivering Sickness", desc: "Insect bites. Disadvantage on Ability Checks/Attacks. Regain only half hit points." },
+            { name: "Mad Monkey Fever", desc: "Mist/Bites. Long term madness (1d100 hours). Hallucinations." }
+        ];
+
+        const TRACKING_CLUES = [
+            "Deep claw gouges on a mahogany tree, sap oozing fresh.",
+            "A partially eaten carcass, bones snapped by immense jaw pressure.",
+            "Strange, acidic mucus dripping from the canopy leaves.",
+            "The jungle has gone silent here; even the insects are hiding.",
+            "Massive footprints filled with recent rainwater.",
+            "Trees knocked over in a distinct, charging path.",
+            "Scorch marks on the undergrowth, smelling of sulfur.",
+            "A territory marking made of piled skulls and feathers."
+        ];
+
+        // --- COMPONENTS ---
+
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-stone-900 border border-stone-700 rounded-lg shadow-xl p-4 ${className}`}>
+            {children}
+            </div>
+        );
+
+        const Button = ({ onClick, children, variant = "primary", className = "" }) => {
+            const baseStyle = "px-4 py-2 rounded font-bold transition-all duration-200 flex items-center justify-center gap-2";
+            const variants = {
+            primary: "bg-amber-700 hover:bg-amber-600 text-stone-100 shadow-md border-b-4 border-amber-900 active:border-b-0 active:translate-y-1",
+            secondary: "bg-stone-700 hover:bg-stone-600 text-stone-200 border border-stone-600",
+            danger: "bg-red-900/50 hover:bg-red-800 text-red-100 border border-red-800",
+            ghost: "bg-transparent hover:bg-stone-800 text-stone-400 border border-transparent"
+            };
+            return (
+            <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>
+                {children}
+            </button>
+            );
+        };
+
+        const StatBlock = ({ stats }) => (
+            <div className="bg-[#fdf1dc] text-stone-900 p-4 rounded shadow-inner font-serif border-2 border-amber-900/20 mt-4 relative">
+            <div className="absolute top-0 left-0 w-full h-2 bg-red-800/80"></div>
+            <div className="grid grid-cols-3 gap-4 text-center mb-4 pt-4 border-b border-red-800/20 pb-4">
+                <div>
+                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Armor Class</div>
+                <div className="text-xl font-bold flex items-center justify-center gap-1">
+                    <Shield size={16} className="text-stone-400" /> {stats.ac}
+                </div>
+                </div>
+                <div>
+                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Hit Points</div>
+                <div className="text-xl font-bold flex items-center justify-center gap-1">
+                    <Heart size={16} className="text-red-600" /> {stats.hp}
+                </div>
+                </div>
+                <div>
+                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Speed</div>
+                <div className="text-xl font-bold">{stats.speed}</div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-6 gap-2 text-center mb-4 bg-red-800/5 p-2 rounded">
+                {Object.entries({STR: stats.str, DEX: stats.dex, CON: stats.con, INT: stats.int, WIS: stats.wis, CHA: stats.cha}).map(([key, val]) => (
+                <div key={key} className="flex flex-col">
+                    <span className="text-[10px] font-bold text-stone-500 font-sans">{key}</span>
+                    <span className="font-bold text-lg">{val}</span>
+                    <span className="text-xs text-stone-500">{val >= 10 ? `+${Math.floor((val-10)/2)}` : Math.floor((val-10)/2)}</span>
+                </div>
+                ))}
+            </div>
+
+            <div className="space-y-3">
+                <h4 className="border-b border-red-800 text-red-800 font-bold uppercase text-sm tracking-widest mb-2">Actions</h4>
+                {stats.actions.map((action, i) => (
+                <div key={i} className="text-sm">
+                    <span className="font-bold italic text-stone-900">{action.name}.</span> <span className="text-stone-800">{action.desc}</span>
+                </div>
+                ))}
+            </div>
+            </div>
+        );
+
+        // --- SUB-SCREENS ---
+
+        const ExpeditionScreen = () => {
+            const [day, setDay] = useState(1);
+            const [weather, setWeather] = useState(WEATHER_EFFECTS[3]);
+            const [hexes, setHexes] = useState(0);
+            const [water, setWater] = useState(true);
+            const [randomEvent, setRandomEvent] = useState(null);
+
+            const advanceDay = () => {
+            setDay(d => d + 1);
+            const roll = Math.floor(Math.random() * WEATHER_EFFECTS.length);
+            setWeather(WEATHER_EFFECTS[roll]);
+            setWater(false); // Reset water tracking
+            setRandomEvent(null);
+            };
+
+            const rollEncounter = () => {
+            const roll = Math.floor(Math.random() * RANDOM_ENCOUNTERS.length);
+            setRandomEvent(RANDOM_ENCOUNTERS[roll]);
+            };
+
+            return (
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Day Tracker */}
+                <Card className="flex flex-col justify-between items-center text-center py-8 bg-stone-900">
+                    <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-2">Expedition Day</h2>
+                    <span className="text-6xl font-black text-amber-500 font-serif">{day}</span>
+                    <div className="flex gap-4 mt-6">
+                    <Button onClick={() => setHexes(h => Math.max(0, h - 1))} variant="secondary">- Hex</Button>
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-stone-200">{hexes}</div>
+                        <div className="text-xs text-stone-500">Hexes Traveled</div>
+                    </div>
+                    <Button onClick={() => setHexes(h => h + 1)} variant="secondary">+ Hex</Button>
+                    </div>
+                </Card>
+
+                {/* Weather Widget */}
+                <Card className="relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">{weather.icon}</div>
+                    <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Droplets size={16} /> Weather Report
+                    </h2>
+                    <div className="flex items-start gap-4">
+                    <div className="p-3 bg-stone-800 rounded-lg border border-stone-600">
+                        {weather.icon}
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-stone-200">{weather.name}</h3>
+                        <p className="text-stone-400 text-sm mt-1 leading-relaxed">{weather.desc}</p>
+                    </div>
+                    </div>
+                    <div className="mt-6 pt-4 border-t border-stone-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <input 
+                        type="checkbox" 
+                        checked={water} 
+                        onChange={() => setWater(!water)}
+                        className="w-5 h-5 accent-blue-500 bg-stone-800 border-stone-600 rounded" 
+                        />
+                        <span className={`text-sm ${water ? 'text-blue-400' : 'text-red-400'}`}>
+                        {water ? "Party has consumed water" : "Water NOT consumed today"}
+                        </span>
+                    </div>
+                    <Button onClick={advanceDay} variant="primary" className="text-sm">Long Rest (Next Day)</Button>
+                    </div>
+                </Card>
+                </div>
+
+                {/* Random Encounters Section */}
+                <Card>
+                <div className="flex justify-between items-center mb-4 border-b border-stone-800 pb-2">
+                    <h2 className="text-stone-400 text-sm uppercase tracking-widest flex items-center gap-2">
+                    <Skull size={16} /> Random Encounters
+                    </h2>
+                    <Button onClick={rollEncounter} variant="secondary" className="text-xs h-8">
+                    Roll Encounter (1d10)
+                    </Button>
+                </div>
+                
+                {randomEvent ? (
+                    <div className="animate-in fade-in slide-in-from-left-2">
+                    <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-bold text-stone-200">{randomEvent.name}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded border ${
+                        randomEvent.type.includes('Combat') ? 'bg-red-900/30 text-red-300 border-red-900/50' : 
+                        randomEvent.type.includes('Social') ? 'bg-blue-900/30 text-blue-300 border-blue-900/50' :
+                        'bg-amber-900/30 text-amber-300 border-amber-900/50'
+                        }`}>
+                        {randomEvent.type}
+                        </span>
+                    </div>
+                    <p className="text-stone-400 text-sm italic border-l-2 border-stone-700 pl-3">
+                        {randomEvent.desc}
+                    </p>
+                    </div>
+                ) : (
+                    <div className="text-center py-4 text-stone-600 text-sm italic">
+                    The jungle is quiet... for now.
+                    </div>
+                )}
+                </Card>
+
+                {/* Jungle Hazards Reference */}
+                <Card>
+                <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <AlertTriangle size={16} /> Jungle Hazards
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {DISEASES.map((d, i) => (
+                    <div key={i} className="bg-stone-950/50 p-3 rounded border border-stone-800">
+                        <h4 className="text-amber-600 font-bold mb-1">{d.name}</h4>
+                        <p className="text-xs text-stone-400">{d.desc}</p>
+                    </div>
+                    ))}
+                </div>
+                </Card>
+            </div>
+            );
+        };
+
+        const HuntScreen = () => {
+            const [biome, setBiome] = useState("Floor");
+            const [contract, setContract] = useState(null);
+            const [clues, setClues] = useState([]);
+            const [showStats, setShowStats] = useState(false);
+            const [foundClues, setFoundClues] = useState([false, false, false]);
+
+            const generateContract = () => {
+            const monsters = ANCIENT_FOREST_ROSTER[biome];
+            const monster = monsters[Math.floor(Math.random() * monsters.length)];
+            
+            // Pick 3 random unique clues
+            const shuffledClues = [...TRACKING_CLUES].sort(() => 0.5 - Math.random());
+            setClues(shuffledClues.slice(0, 3));
+            
+            setContract(monster);
+            setShowStats(false);
+            setFoundClues([false, false, false]);
+            };
+
+            const toggleClue = (index) => {
+            const newFound = [...foundClues];
+            newFound[index] = !newFound[index];
+            setFoundClues(newFound);
+            };
+
+            const allCluesFound = foundClues.every(Boolean);
+
+            return (
+            <div className="space-y-6">
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                {Object.keys(ANCIENT_FOREST_ROSTER).map(b => (
+                    <button
+                    key={b}
+                    onClick={() => setBiome(b)}
+                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
+                        biome === b 
+                        ? 'bg-amber-600 text-white' 
+                        : 'bg-stone-800 text-stone-400 hover:bg-stone-700'
+                    }`}
+                    >
+                    {b} Zone
+                    </button>
+                ))}
+                </div>
+
+                <div className="text-center py-4">
+                <Button onClick={generateContract} className="w-full md:w-auto mx-auto px-8 py-4 text-lg">
+                    <Search size={20} /> Scout Area for Monsters
+                </Button>
+                </div>
+
+                {contract && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    {/* The Monster Card */}
+                    <Card className="lg:col-span-1 border-amber-800/50 bg-stone-900/90 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-amber-600"></div>
+                        <h3 className="text-stone-500 text-xs font-mono mb-1 uppercase tracking-widest">Target Identified</h3>
+                        <h2 className="text-3xl font-black text-stone-100 font-serif mb-2">{contract.name}</h2>
+                        
+                        <div className="flex gap-2 mb-4">
+                        <span className="px-2 py-0.5 bg-stone-800 text-stone-300 text-xs rounded border border-stone-700">{contract.type}</span>
+                        <span className="px-2 py-0.5 bg-red-900/30 text-red-300 text-xs rounded border border-red-900/50">CR {contract.cr}</span>
+                        </div>
+
+                        <div className="p-3 bg-stone-950 rounded border border-stone-800 mb-4">
+                        <p className="text-amber-500 text-xs font-bold uppercase mb-1">Ecological Traits</p>
+                        <p className="text-stone-300 text-sm italic">{contract.traits}</p>
+                        </div>
+
+                        <Button variant="secondary" onClick={() => setShowStats(!showStats)} className="w-full text-xs">
+                            {showStats ? "Hide Stat Block" : "Reveal Stat Block (DM Only)"}
+                        </Button>
+
+                        {showStats && contract.stats && (
+                        <div className="animate-in slide-in-from-top-2">
+                            <StatBlock stats={contract.stats} />
+                        </div>
+                        )}
+                    </Card>
+
+                    {/* The Tracking Phase */}
+                    <Card className="lg:col-span-2">
+                        <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-stone-400 text-sm uppercase tracking-widest flex items-center gap-2">
+                            <Compass size={16} /> Tracking Signs
+                        </h3>
+                        {allCluesFound && (
+                            <span className="text-green-500 text-xs font-bold uppercase tracking-wider animate-pulse flex items-center gap-1">
+                            <Check size={14} /> Hunt Ready
+                            </span>
+                        )}
+                        </div>
+
+                        <div className="space-y-3">
+                        {clues.map((clue, idx) => (
+                            <button 
+                            key={idx} 
+                            onClick={() => toggleClue(idx)}
+                            className={`w-full flex gap-4 items-start p-3 rounded transition-all border text-left group ${
+                                foundClues[idx] 
+                                ? 'bg-amber-900/20 border-amber-800/50' 
+                                : 'bg-transparent border-transparent hover:bg-stone-800 hover:border-stone-700'
+                            }`}
+                            >
+                            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs border transition-colors ${
+                                foundClues[idx]
+                                ? 'bg-amber-600 text-stone-900 border-amber-600'
+                                : 'bg-stone-800 text-stone-500 border-stone-600 group-hover:border-stone-500'
+                            }`}>
+                                {foundClues[idx] ? <Check size={14} /> : idx + 1}
+                            </div>
+                            <p className={`text-sm transition-colors ${foundClues[idx] ? 'text-amber-100/70 line-through' : 'text-stone-300'}`}>
+                                {clue}
+                            </p>
+                            </button>
+                        ))}
+                        </div>
+                        <div className={`mt-6 p-4 border rounded text-center transition-colors duration-300 ${
+                        allCluesFound ? 'bg-green-900/20 border-green-800/50' : 'bg-amber-900/10 border-amber-900/30'
+                        }`}>
+                        <p className={`text-sm ${allCluesFound ? 'text-green-300' : 'text-amber-200'}`}>
+                            {allCluesFound 
+                            ? <span className="font-bold flex items-center justify-center gap-2"><Target size={16}/> PREY LOCATED! Party has Advantage on round 1 or Surprise.</span>
+                            : <span><span className="font-bold">DM Tip:</span> Finding all 3 signs grants Advantage on the first round of combat.</span>
+                            }
+                        </p>
+                        </div>
+                    </Card>
+
+                    </div>
+                </div>
+                )}
+            </div>
+            );
+        };
+
+        const CarvingScreen = () => {
+            const [selectedType, setSelectedType] = useState("Beast");
+            const [loot, setLoot] = useState([]);
+            const [dc, setDc] = useState(10);
+
+            const rollLoot = () => {
+            const parts = MONSTER_PARTS[selectedType];
+            const rolled = [];
+            const count = Math.floor(Math.random() * 2) + 1; // 1-2 items
+
+            for (let i = 0; i < count; i++) {
+                if (parts) {
+                    rolled.push(parts[Math.floor(Math.random() * parts.length)]);
+                }
+            }
+            setLoot(rolled);
+            setDc(10 + Math.floor(Math.random() * 5)); // DC 10-15
+            };
+
+            return (
+            <div className="max-w-2xl mx-auto space-y-8">
+                <Card className="text-center py-8">
+                <Bone className="w-12 h-12 text-stone-600 mx-auto mb-4" />
+                <h2 className="text-2xl font-serif text-stone-200 mb-6">Field Carving Station</h2>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-8 px-4">
+                    {Object.keys(MONSTER_PARTS).map(type => (
+                    <button
+                        key={type}
+                        onClick={() => setSelectedType(type)}
+                        className={`p-2 rounded text-sm border transition-all ${
+                        selectedType === type 
+                        ? 'bg-amber-900/50 border-amber-600 text-amber-100' 
+                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-750'
+                        }`}
+                    >
+                        {type}
+                    </button>
+                    ))}
+                </div>
+
+                <Button onClick={rollLoot} variant="primary" className="mx-auto w-full md:w-1/2">
+                    Attempt Carve (Survival Check)
+                </Button>
+                </Card>
+
+                {loot.length > 0 && (
+                <Card className="animate-in zoom-in-95 duration-200 border-green-900/30 bg-stone-900">
+                    <div className="flex justify-between items-center mb-4 border-b border-stone-800 pb-2">
+                    <h3 className="text-green-500 font-bold uppercase tracking-wide text-sm">Carving Results</h3>
+                    <span className="text-xs text-stone-500 font-mono">DC {dc} Survival</span>
+                    </div>
+                    
+                    <ul className="space-y-3">
+                    {loot.map((item, idx) => (
+                        <li key={idx} className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+                        <span className="text-stone-200 text-lg">{item}</span>
+                        </li>
+                    ))}
+                    </ul>
+                    
+                    <div className="mt-6 text-xs text-stone-500 bg-stone-950 p-3 rounded">
+                    <strong>Crafting Note:</strong> Items can be brought to a craftsman in Port Nyanzaru. 
+                    3 Common parts = 1 Uncommon Magic Item. 1 Rare part = Key ingredient for Rare Item.
+                    </div>
+                </Card>
+                )}
+            </div>
+            );
+        };
+
+        const ChultbrewScreen = () => {
+            const [subTab, setSubTab] = useState('enemies');
+            
+            // Local state for the session
+            const [customEnemies, setCustomEnemies] = useState([
+            { name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }
+            ]);
+            const [customItems, setCustomItems] = useState([
+            { name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }
+            ]);
+
+            // Form states
+            const [enemyForm, setEnemyForm] = useState({ name: '', cr: '', type: 'Beast', notes: '' });
+            const [itemForm, setItemForm] = useState({ name: '', type: 'Weapon', effect: '' });
+
+            const addEnemy = () => {
+            if (!enemyForm.name) return;
+            setCustomEnemies([...customEnemies, enemyForm]);
+            setEnemyForm({ name: '', cr: '', type: 'Beast', notes: '' });
+            };
+
+            const addItem = () => {
+            if (!itemForm.name) return;
+            setCustomItems([...customItems, itemForm]);
+            setItemForm({ name: '', type: 'Weapon', effect: '' });
+            };
+
+            const removeEnemy = (idx) => setCustomEnemies(customEnemies.filter((_, i) => i !== idx));
+            const removeItem = (idx) => setCustomItems(customItems.filter((_, i) => i !== idx));
+
+            return (
+            <div className="space-y-6">
+                <div className="flex gap-2 border-b border-stone-800 pb-2">
+                <button 
+                    onClick={() => setSubTab('enemies')}
+                    className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors ${
+                    subTab === 'enemies' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'
+                    }`}
+                >
+                    <div className="flex items-center gap-2"><Skull size={16}/> Bestiary</div>
+                </button>
+                <button 
+                    onClick={() => setSubTab('items')}
+                    className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors ${
+                    subTab === 'items' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'
+                    }`}
+                >
+                    <div className="flex items-center gap-2"><Shield size={16}/> Armory</div>
+                </button>
+                </div>
+
+                {subTab === 'enemies' ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Add Enemy Form */}
+                    <Card className="h-fit">
+                    <h3 className="text-stone-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">
+                        <Plus size={14}/> Add Homebrew Enemy
+                    </h3>
+                    <div className="space-y-3">
+                        <input 
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                        placeholder="Name (e.g., Eblis Prophet)"
+                        value={enemyForm.name}
+                        onChange={e => setEnemyForm({...enemyForm, name: e.target.value})}
+                        />
+                        <div className="flex gap-2">
+                        <input 
+                            className="w-1/3 bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                            placeholder="CR"
+                            value={enemyForm.cr}
+                            onChange={e => setEnemyForm({...enemyForm, cr: e.target.value})}
+                        />
+                        <select 
+                            className="w-2/3 bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                            value={enemyForm.type}
+                            onChange={e => setEnemyForm({...enemyForm, type: e.target.value})}
+                        >
+                            {["Beast", "Monstrosity", "Undead", "Humanoid", "Plant", "Dragon", "Construct", "Fiend"].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                        </div>
+                        <textarea 
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
+                        placeholder="Short notes/abilities..."
+                        value={enemyForm.notes}
+                        onChange={e => setEnemyForm({...enemyForm, notes: e.target.value})}
+                        />
+                        <Button onClick={addEnemy} className="w-full text-sm">Add to Roster</Button>
+                    </div>
+                    </Card>
+
+                    {/* Enemy List */}
+                    <div className="md:col-span-2 space-y-3">
+                    {customEnemies.length === 0 && <div className="text-stone-600 text-center py-8 italic">No homebrew enemies yet.</div>}
+                    {customEnemies.map((enemy, idx) => (
+                        <div key={idx} className="bg-stone-900 border border-stone-800 p-4 rounded flex justify-between items-start group hover:border-stone-700 transition-colors">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-bold text-lg text-stone-200">{enemy.name}</h4>
+                            <span className="text-xs bg-red-900/30 text-red-300 px-1.5 rounded border border-red-900/50">CR {enemy.cr}</span>
+                            <span className="text-xs text-stone-500">{enemy.type}</span>
+                            </div>
+                            <p className="text-stone-400 text-sm italic">{enemy.notes}</p>
+                        </div>
+                        <button onClick={() => removeEnemy(idx)} className="text-stone-600 hover:text-red-500 transition-colors">
+                            <Trash2 size={16} />
+                        </button>
+                        </div>
+                    ))}
+                    </div>
+                </div>
+                ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Add Item Form */}
+                    <Card className="h-fit">
+                    <h3 className="text-stone-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">
+                        <Plus size={14}/> Add Homebrew Item
+                    </h3>
+                    <div className="space-y-3">
+                        <input 
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                        placeholder="Name (e.g., Batiri Mask)"
+                        value={itemForm.name}
+                        onChange={e => setItemForm({...itemForm, name: e.target.value})}
+                        />
+                        <select 
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none"
+                        value={itemForm.type}
+                        onChange={e => setItemForm({...itemForm, type: e.target.value})}
+                        >
+                        {["Weapon", "Armor", "Potion", "Wondrous Item", "Material"].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                        <textarea 
+                        className="w-full bg-stone-950 border border-stone-700 rounded p-2 text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
+                        placeholder="Effect/Description..."
+                        value={itemForm.effect}
+                        onChange={e => setItemForm({...itemForm, effect: e.target.value})}
+                        />
+                        <Button onClick={addItem} className="w-full text-sm">Forge Item</Button>
+                    </div>
+                    </Card>
+
+                    {/* Item List */}
+                    <div className="md:col-span-2 space-y-3">
+                    {customItems.length === 0 && <div className="text-stone-600 text-center py-8 italic">No homebrew items yet.</div>}
+                    {customItems.map((item, idx) => (
+                        <div key={idx} className="bg-stone-900 border border-stone-800 p-4 rounded flex justify-between items-start group hover:border-stone-700 transition-colors">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-bold text-lg text-amber-500">{item.name}</h4>
+                            <span className="text-xs bg-stone-800 text-stone-400 px-1.5 rounded">{item.type}</span>
+                            </div>
+                            <p className="text-stone-300 text-sm">{item.effect}</p>
+                        </div>
+                        <button onClick={() => removeItem(idx)} className="text-stone-600 hover:text-red-500 transition-colors">
+                            <Trash2 size={16} />
+                        </button>
+                        </div>
+                    ))}
+                    </div>
+                </div>
+                )}
+            </div>
+            );
+        };
+
+        // --- MAIN APP ---
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('expedition');
+            const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+            const navItems = [
+            { id: 'expedition', icon: <Map size={18} />, label: 'Expedition' },
+            { id: 'hunt', icon: <Target size={18} />, label: 'The Hunt' },
+            { id: 'carving', icon: <Sword size={18} />, label: 'Carving' },
+            { id: 'chultbrew', icon: <Beaker size={18} />, label: 'Chultbrew' },
+            ];
+
+            return (
+            <div className="min-h-screen bg-stone-950 text-stone-200 font-sans selection:bg-amber-900 selection:text-white flex flex-col md:flex-row">
+                {/* Mobile Header */}
+                <div className="md:hidden flex items-center justify-between p-4 bg-stone-900 border-b border-stone-800 sticky top-0 z-20 w-full">
+                <h1 className="text-amber-500 font-bold font-serif tracking-wider">CHULT HUNTER</h1>
+                <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 text-stone-400">
+                    {isSidebarOpen ? <X /> : <Menu />}
+                </button>
+                </div>
+
+                {/* Sidebar Navigation */}
+                <aside className={`
+                    fixed inset-y-0 left-0 z-10 w-64 bg-stone-900 border-r border-stone-800 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-screen
+                    ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                `}>
+                    <div className="p-6 hidden md:block">
+                    <h1 className="text-2xl font-black font-serif text-amber-500 tracking-wider">NYANZARU<br/>LOGBOOK</h1>
+                    <p className="text-xs text-stone-500 mt-2 uppercase tracking-widest">Monster Hunter Division</p>
+                    </div>
+
+                    <nav className="px-4 space-y-2 mt-4">
+                    {navItems.map(item => (
+                        <button
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                            activeTab === item.id 
+                            ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50' 
+                            : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'
+                        }`}
+                        >
+                        {item.icon}
+                        <span className="font-bold text-sm">{item.label}</span>
+                        </button>
+                    ))}
+                    </nav>
+                    
+                    <div className="absolute bottom-0 left-0 w-full p-4 border-t border-stone-800">
+                    <div className="flex items-center gap-3 text-xs text-stone-500">
+                        <Backpack size={16} />
+                        <span>Inventory Cap: <span className="text-stone-300">Light</span></span>
+                    </div>
+                    </div>
+                </aside>
+
+                {/* Main Content Area */}
+                <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-65px)] md:h-screen scrollbar-hide w-full">
+                    <div className="max-w-4xl mx-auto">
+                    {activeTab === 'expedition' && <ExpeditionScreen />}
+                    {activeTab === 'hunt' && <HuntScreen />}
+                    {activeTab === 'carving' && <CarvingScreen />}
+                    {activeTab === 'chultbrew' && <ChultbrewScreen />}
+                    </div>
+                </main>
+            </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
