@@ -1,1100 +1,1 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Chult Hunter Logbook</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script type="importmap">
-        {
-            "imports": {
-                "react": "https://esm.sh/react@18.2.0",
-                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-                "lucide-react": "https://esm.sh/lucide-react@0.263.1"
-            }
-        }
-    </script>
-    <script type="module" src="https://esm.sh/run" defer></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <style>
-        /* Custom Scrollbar Hiding */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        
-        body {
-            background-color: #0c0a09; /* stone-950 */
-            /* iOS Specific: Prevent pull-to-refresh on body to feel more like an app */
-            overscroll-behavior-y: none;
-            /* iOS Specific: Smooth scrolling */
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* iOS Specific: Remove gray tap highlight */
-        * {
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        /* Prevent text selection on UI elements for app-feel */
-        .select-none {
-            -webkit-user-select: none;
-            user-select: none;
-        }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
-
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'react';
-        import { createRoot } from 'react-dom/client';
-        import { 
-            Skull, Map, Tent, Droplets, Flame, Wind, Sword, Backpack, 
-            Scroll, Target, Menu, X, Bone, Search, AlertTriangle, 
-            Compass, Shield, Heart, Zap, Check, Beaker, Plus, Trash2, PenTool,
-            History 
-        } from 'lucide-react';
-
-        // --- DATA LISTS ---
-
-        const WEATHER_EFFECTS = [
-            { name: "Sweltering Heat", icon: <Flame className="w-6 h-6 text-orange-500" />, desc: "CON save (DC 5 + days) or gain exhaustion. Water requirement doubled.", type: "heat" },
-            { name: "Tropical Storm", icon: <Droplets className="w-6 h-6 text-blue-500" />, desc: "Heavy rain disimposes Disadvantage on Perception. Extinguishes open flames.", type: "rain" },
-            { name: "Stagnant Mists", icon: <Wind className="w-6 h-6 text-gray-400" />, desc: "Visibility reduced to 60ft. Survival checks to navigate have Disadvantage.", type: "fog" },
-            { name: "Clear & Humid", icon: <Tent className="w-6 h-6 text-yellow-500" />, desc: "Normal travel pace possible. Insects are particularly biting today.", type: "clear" },
-            { name: "Ashfall", icon: <Skull className="w-6 h-6 text-gray-500" />, desc: "Ash from the Peaks of Flame. Constitution checks are made with Disadvantage.", type: "ash" }
-        ];
-
-        const RANDOM_ENCOUNTERS = [
-            { name: "Chwinga Sighting", type: "Social/Buff", desc: "A tiny elemental spirit observes the party. If treated well, grants a Charm (DMG p.228)." },
-            { name: "Undead Horde", type: "Combat", desc: "2d6 Zombies and 1d4 Ghouls rise from the mud." },
-            { name: "Emerald Enclave Scouts", type: "Social", desc: "3 Scouts (MM) led by a Druid. Can share map info or trade rations." },
-            { name: "Pterafolk Raid", type: "Combat", desc: "1d4+2 Pterafolk swoop down to steal shiny objects or food." },
-            { name: "Mad Monkey Mist", type: "Hazard", desc: "Blue mist drifts in. DC 13 CON save or contract Mad Monkey Fever." },
-            { name: "Statue of Ubtao", type: "Exploration", desc: "An overgrown maze-statue. Succeeding a DC 15 Religion/Investigation check reveals a hidden cache." },
-            { name: "Flaming Fist Patrol", type: "Social/Combat", desc: "A heavy patrol demands a 'Geography Tax' or a charter of exploration." },
-            { name: "Grung Ambush", type: "Combat", desc: "A net trap springs! 2d4 Grung watch from the trees with poisoned blowguns." },
-            { name: "Aarakocra Patrol", type: "Social", desc: "Birdfolk from Kir Sabal. They warn of a larger threat nearby." },
-            { name: "Artus Cimber (Rare)", type: "Special", desc: "A man with a glowing ring and a lizardfolk companion (Dragonbait) are camping nearby." }
-        ];
-
-        const CHANGELOG_DATA = [
-            { version: "1.5", date: "Latest", title: "Complete Roster", changes: ["Added normal Chult monsters (T-Rex, Raptors, etc.)", "Added 'Ruins' biome to Hunt Board", "Integrated 5e stats for all new monsters"] },
-            { version: "1.4", date: "Previous", title: "Local Storage Support", changes: ["Homebrew Bestiary saves to browser", "Homebrew Armory saves to browser", "Data persists between sessions"] },
-            { version: "1.3", date: "Previous", title: "Mobile & iOS Support", changes: ["Added responsive layout for iPhone/iPad", "Touch-friendly buttons & spacing", "Prevented auto-zoom on inputs", "Added app-like overscroll behavior"] },
-            { version: "1.2", date: "Previous", title: "Chultbrew & Tools", changes: ["Added Homebrew Bestiary & Armory", "Interactive Tracking Clues", "Added Random Encounter Generator"] },
-            { version: "1.1", date: "Initial", title: "Monster Hunter Expansion", changes: ["Added Ancient Forest Roster", "Added 5e Stat Blocks toggle", "Refined Loot Tables"] }
-        ];
-
-        const ANCIENT_FOREST_ROSTER = {
-            "Floor": [
-            { 
-                name: "Jagras Pack", 
-                type: "Medium Beast", 
-                cr: "1/2", 
-                traits: "Pack Tactics, Swarm",
-                stats: {
-                ac: 12, hp: "22 (4d8 + 4)", speed: "30 ft.",
-                str: 12, dex: 15, con: 12, int: 3, wis: 12, cha: 6,
-                actions: [
-                    { name: "Bite", desc: "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage." },
-                    { name: "Swarm Tactics", desc: "The pack has advantage on an attack roll against a creature if at least one of the pack's allies is within 5 ft. of the creature." }
-                ]
-                }
-            },
-            { 
-                name: "Velociraptor Pack", 
-                type: "Tiny Beast", 
-                cr: "1/4", 
-                traits: "Pack Tactics, Ambush",
-                stats: {
-                ac: 13, hp: "10 (3d4 + 3)", speed: "30 ft.",
-                str: 6, dex: 14, con: 13, int: 4, wis: 12, cha: 6,
-                actions: [
-                    { name: "Multiattack", desc: "Two attacks: one with bite, one with claws." },
-                    { name: "Bite", desc: "+4 to hit. Hit: 5 (1d6 + 2) piercing damage." }
-                ]
-                }
-            },
-            { 
-                name: "Great Jagras", 
-                type: "Large Monstrosity", 
-                cr: "2", 
-                traits: "Swallow, Bloat Mode",
-                stats: {
-                ac: 13, hp: "52 (7d10 + 14)", speed: "40 ft.",
-                str: 16, dex: 14, con: 14, int: 3, wis: 12, cha: 6,
-                actions: [
-                    { name: "Multiattack", desc: "The Great Jagras makes two attacks: one with its bite and one with its claws." },
-                    { name: "Bite", desc: "+5 to hit, reach 5 ft. Hit: 10 (2d6 + 3) piercing damage. If target is Medium or smaller, it is grappled (escape DC 13)." },
-                    { name: "Swallow", desc: "The Jagras makes a bite attack against a grappled creature. If hit, the creature is swallowed. Swallowed creature is blinded/restrained and takes 7 (2d6) acid damage at start of Jagras' turn." }
-                ]
-                }
-            },
-            { 
-                name: "Kamadan", 
-                type: "Large Monstrosity", 
-                cr: "4", 
-                traits: "Sleep Breath, Snakes",
-                stats: {
-                ac: 13, hp: "67 (9d10 + 18)", speed: "30 ft.",
-                str: 16, dex: 16, con: 14, int: 3, wis: 14, cha: 7,
-                actions: [
-                    { name: "Multiattack", desc: "Two attacks: one with bite/snakes, one with claws." },
-                    { name: "Sleep Breath (Recharge 5-6)", desc: "30ft cone. DC 12 CON save or unconscious for 10 mins." }
-                ]
-                }
-            },
-            { 
-                name: "Girallon", 
-                type: "Large Monstrosity", 
-                cr: "4", 
-                traits: "Aggressive, Climb",
-                stats: {
-                ac: 13, hp: "59 (7d10 + 21)", speed: "40 ft., climb 40 ft.",
-                str: 18, dex: 16, con: 16, int: 5, wis: 12, cha: 7,
-                actions: [
-                    { name: "Multiattack", desc: "Five attacks: one bite, four claws." },
-                    { name: "Rend", desc: "If the girallon hits with two or more claw attacks, target takes extra 11 (2d10) damage." }
-                ]
-                }
-            },
-            { 
-                name: "Zombie T-Rex", 
-                type: "Huge Undead", 
-                cr: "8", 
-                traits: "Vomit Zombies, Stench",
-                stats: {
-                ac: 14, hp: "136 (13d12 + 52)", speed: "40 ft.",
-                str: 25, dex: 6, con: 19, int: 2, wis: 8, cha: 5,
-                actions: [
-                    { name: "Multiattack", desc: "One bite attack." },
-                    { name: "Bite", desc: "+10 to hit. Hit: 33 (4d12 + 7) piercing. Grappled (escape DC 17)." },
-                    { name: "Vomit Zombies (Recharge 6)", desc: "Spews 1d4 zombies into unoccupied spaces within 10 ft." }
-                ]
-                }
-            }
-            ],
-            "Canopy": [
-            { 
-                name: "Tobi-Kadachi", 
-                type: "Large Monstrosity", 
-                cr: "5", 
-                traits: "Static Charge, Glide",
-                stats: {
-                ac: 15, hp: "82 (11d10 + 22)", speed: "40 ft., climb 40 ft.",
-                str: 14, dex: 18, con: 14, int: 6, wis: 14, cha: 8,
-                actions: [
-                    { name: "Multiattack", desc: "Makes two tail attacks." },
-                    { name: "Electrified Tail", desc: "+7 to hit, reach 10 ft. Hit: 8 (1d8 + 4) bludgeoning plus 9 (2d8) lightning damage. Target must succeed DC 14 CON save or be Stunned until end of next turn." },
-                    { name: "Static Build Up", desc: "Bonus Action. Tobi-Kadachi moves up to its speed without provoking opportunity attacks. Its next attack deals max lightning damage." }
-                ]
-                }
-            },
-            { 
-                name: "Su-Monster", 
-                type: "Medium Monstrosity", 
-                cr: "1", 
-                traits: "Psychic Crush, Hanging",
-                stats: {
-                ac: 12, hp: "27 (5d8 + 5)", speed: "30 ft., climb 30 ft.",
-                str: 14, dex: 15, con: 12, int: 9, wis: 11, cha: 9,
-                actions: [
-                    { name: "Multiattack", desc: "Two attacks: one bite, one claws." },
-                    { name: "Psychic Crush (Recharge 5-6)", desc: "Target within 30ft. DC 12 WIS save or 17 (3d8+4) psychic damage and stunned." }
-                ]
-                }
-            },
-            { 
-                name: "Rathalos", 
-                type: "Huge Dragon", 
-                cr: "11", 
-                traits: "Flyby, Poison Talons",
-                stats: {
-                ac: 18, hp: "178 (17d12 + 68)", speed: "40 ft., fly 80 ft.",
-                str: 23, dex: 14, con: 19, int: 10, wis: 14, cha: 17,
-                actions: [
-                    { name: "Multiattack", desc: "One Bite, two Claws." },
-                    { name: "Bite", desc: "+10 to hit. Hit: 17 (2d10 + 6) piercing plus 7 (2d6) fire." },
-                    { name: "Poison Talons", desc: "+10 to hit. Hit: 13 (2d6 + 6) slashing. Target must succeed DC 16 CON save or be Poisoned for 1 minute." },
-                    { name: "Fireball Breath (Recharge 5-6)", desc: "150ft range, 20ft radius sphere. DC 17 DEX save. 49 (14d6) fire damage on fail, half on success." }
-                ]
-                }
-            }
-            ],
-            "River": [
-            { 
-                name: "Plesiosaurus", 
-                type: "Large Beast", 
-                cr: "2", 
-                traits: "Hold Breath, Bite",
-                stats: {
-                ac: 13, hp: "68 (8d10 + 24)", speed: "20 ft., swim 40 ft.",
-                str: 18, dex: 15, con: 16, int: 2, wis: 12, cha: 5,
-                actions: [
-                    { name: "Bite", desc: "+6 to hit, reach 10 ft. Hit: 14 (3d6 + 4) piercing damage." }
-                ]
-                }
-            },
-            { 
-                name: "Aldani (Lobsterfolk)", 
-                type: "Medium Monstrosity", 
-                cr: "1", 
-                traits: "Diplomatic, Grapple",
-                stats: {
-                ac: 14, hp: "49 (9d8 + 9)", speed: "30 ft., swim 30 ft.",
-                str: 13, dex: 10, con: 12, int: 10, wis: 14, cha: 10,
-                actions: [
-                    { name: "Multiattack", desc: "Two claw attacks." },
-                    { name: "Claw", desc: "+3 to hit. Hit: 6 (1d10 + 1) slashing. Target is grappled (escape DC 11)." }
-                ]
-                }
-            },
-            { 
-                name: "Giant Crocodile", 
-                type: "Huge Beast", 
-                cr: "5", 
-                traits: "Stealth, Hold Breath",
-                stats: {
-                ac: 14, hp: "85 (9d12 + 27)", speed: "30 ft., swim 50 ft.",
-                str: 21, dex: 9, con: 17, int: 2, wis: 10, cha: 7,
-                actions: [
-                    { name: "Multiattack", desc: "Two attacks: one bite, one tail." },
-                    { name: "Bite", desc: "+8 to hit. Hit: 21 (3d10 + 5) piercing. Target is grappled (escape DC 16)." }
-                ]
-                }
-            },
-            { 
-                name: "Anjanath", 
-                type: "Huge Monstrosity", 
-                cr: "9", 
-                traits: "Aggressive, Enrage",
-                stats: {
-                ac: 15, hp: "147 (14d12 + 56)", speed: "50 ft.",
-                str: 22, dex: 12, con: 18, int: 4, wis: 12, cha: 7,
-                actions: [
-                    { name: "Multiattack", desc: "One Bite, one Tail." },
-                    { name: "Bite", desc: "+10 to hit, reach 10 ft. Hit: 25 (3d12 + 6) piercing damage." },
-                    { name: "Flame Breath (Recharge 5-6)", desc: "30ft cone. DC 16 DEX save. 42 (12d6) fire damage. Can only be used when Enraged (below half HP)." },
-                    { name: "Aggressive Charge", desc: "Bonus Action. Move up to speed towards a hostile creature." }
-                ]
-                }
-            },
-            { 
-                name: "Sarcosuchus", 
-                type: "Gargantuan Beast", 
-                cr: "7", 
-                traits: "Death Roll, Ambush",
-                stats: {
-                ac: 15, hp: "137 (11d20 + 22)", speed: "40 ft., swim 50 ft.",
-                str: 23, dex: 10, con: 18, int: 2, wis: 10, cha: 7,
-                actions: [
-                    { name: "Bite", desc: "+9 to hit. Hit: 28 (4d10 + 6) piercing. Restrained (escape DC 17)." },
-                    { name: "Death Roll", desc: "Bonus Action against restrained target. 22 (4d10) bludgeoning damage." }
-                ]
-                }
-            }
-            ],
-            "Ruins": [
-            { 
-                name: "Batiri Goblin Stack", 
-                type: "Medium Humanoid", 
-                cr: "1/2", 
-                traits: "Battle Stack, Madness",
-                stats: {
-                ac: 15, hp: "30 (stack of 4)", speed: "30 ft.",
-                str: 10, dex: 14, con: 10, int: 10, wis: 8, cha: 8,
-                actions: [
-                    { name: "Multiattack", desc: "Makes as many attacks as goblins in stack." },
-                    { name: "Spear", desc: "+4 to hit. Hit: 5 (1d6 + 2) piercing damage." },
-                    { name: "Topple", desc: "If the stack takes 10+ damage in one turn, DC 10 DEX save or collapse." }
-                ]
-                }
-            },
-            { 
-                name: "Yuan-ti Malison", 
-                type: "Medium Monstrosity", 
-                cr: "3", 
-                traits: "Shapechanger, Magic Res",
-                stats: {
-                ac: 12, hp: "66 (12d8 + 12)", speed: "30 ft.",
-                str: 16, dex: 14, con: 13, int: 14, wis: 12, cha: 16,
-                actions: [
-                    { name: "Multiattack", desc: "Two scimitar or longbow attacks." },
-                    { name: "Scimitar", desc: "+5 to hit. Hit: 6 (1d6 + 3) slashing + 7 (2d6) poison." },
-                    { name: "Suggestion", desc: "Can cast Suggestion (DC 13) 3/day." }
-                ]
-                }
-            },
-            { 
-                name: "Yellow Musk Creeper", 
-                type: "Medium Plant", 
-                cr: "2", 
-                traits: "Zombify, Charm",
-                stats: {
-                ac: 5, hp: "60 (11d8 + 11)", speed: "5 ft., climb 5 ft.",
-                str: 12, dex: 1, con: 12, int: 1, wis: 10, cha: 3,
-                actions: [
-                    { name: "Touch", desc: "+3 to hit. Hit: 13 (3d8) psychic. DC 11 WIS save or Charmed." },
-                    { name: "Yellow Musk", desc: "A charmed humanoid reduced to 0 HP dies and becomes a Yellow Musk Zombie in 24h." }
-                ]
-                }
-            },
-            { 
-                name: "Stone Golem", 
-                type: "Large Construct", 
-                cr: "10", 
-                traits: "Slow, Magic Immunity",
-                stats: {
-                ac: 17, hp: "178 (17d10 + 85)", speed: "30 ft.",
-                str: 22, dex: 9, con: 20, int: 3, wis: 11, cha: 1,
-                actions: [
-                    { name: "Multiattack", desc: "Two slam attacks." },
-                    { name: "Slam", desc: "+10 to hit. Hit: 19 (3d8 + 6) bludgeoning." },
-                    { name: "Slow (Recharge 5-6)", desc: "10ft range. DC 17 WIS save or Slowed for 1 minute." }
-                ]
-                }
-            }
-            ]
-        };
-
-        const MONSTER_PARTS = {
-            Beast: ["Thick Hide (AC craft)", "Sharp Fang (Dagger craft)", "Beast Heart (Potion)", "Adrenal Gland (Speed potion)", "Jagras Mane (Stealth gear)"],
-            Dragon: ["Draconic Scale (Resistance)", "Inferno Sac (Fire Weapon)", "Rath Wingtalon (Sword craft)", "Plate (Heavy Armor)", "Wyvern Gem (Rare Focus)"],
-            Monstrosity: ["Mutated Organ (Alchemy)", "Electro Sac (Lightning ammo)", "Toxic Sac (Poison)", "Strange Tentacle (Whip craft)", "Wyvern Gem (Rare Focus)"],
-        };
-
-        const DISEASES = [
-            { name: "Throat Leeches", desc: "Contaminated water. gain 1 level of exhaustion on failed CON save (DC 12) every 24h." },
-            { name: "Shivering Sickness", desc: "Insect bites. Disadvantage on Ability Checks/Attacks. Regain only half hit points." },
-            { name: "Mad Monkey Fever", desc: "Mist/Bites. Long term madness (1d100 hours). Hallucinations." }
-        ];
-
-        const TRACKING_CLUES = [
-            "Deep claw gouges on a mahogany tree, sap oozing fresh.",
-            "A partially eaten carcass, bones snapped by immense jaw pressure.",
-            "Strange, acidic mucus dripping from the canopy leaves.",
-            "The jungle has gone silent here; even the insects are hiding.",
-            "Massive footprints filled with recent rainwater.",
-            "Trees knocked over in a distinct, charging path.",
-            "Scorch marks on the undergrowth, smelling of sulfur.",
-            "A territory marking made of piled skulls and feathers."
-        ];
-
-        // --- COMPONENTS ---
-
-        const Card = ({ children, className = "" }) => (
-            <div className={`bg-stone-900 border border-stone-700 rounded-lg shadow-xl p-4 ${className}`}>
-            {children}
-            </div>
-        );
-
-        const Button = ({ onClick, children, variant = "primary", className = "" }) => {
-            const baseStyle = "px-4 py-3 md:py-2 rounded font-bold transition-all duration-200 flex items-center justify-center gap-2 select-none touch-manipulation active:scale-[0.98]";
-            const variants = {
-            primary: "bg-amber-700 hover:bg-amber-600 text-stone-100 shadow-md border-b-4 border-amber-900 active:border-b-0 active:translate-y-1",
-            secondary: "bg-stone-700 hover:bg-stone-600 text-stone-200 border border-stone-600",
-            danger: "bg-red-900/50 hover:bg-red-800 text-red-100 border border-red-800",
-            ghost: "bg-transparent hover:bg-stone-800 text-stone-400 border border-transparent"
-            };
-            return (
-            <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>
-                {children}
-            </button>
-            );
-        };
-
-        const StatBlock = ({ stats }) => (
-            <div className="bg-[#fdf1dc] text-stone-900 p-4 rounded shadow-inner font-serif border-2 border-amber-900/20 mt-4 relative">
-            <div className="absolute top-0 left-0 w-full h-2 bg-red-800/80"></div>
-            <div className="grid grid-cols-3 gap-4 text-center mb-4 pt-4 border-b border-red-800/20 pb-4">
-                <div>
-                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">AC</div>
-                <div className="text-xl font-bold flex items-center justify-center gap-1">
-                    <Shield size={16} className="text-stone-400" /> {stats.ac}
-                </div>
-                </div>
-                <div>
-                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">HP</div>
-                <div className="text-xl font-bold flex items-center justify-center gap-1">
-                    <Heart size={16} className="text-red-600" /> {stats.hp.split(' ')[0]}
-                </div>
-                </div>
-                <div>
-                <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Spd</div>
-                <div className="text-xl font-bold">{stats.speed.split(',')[0]}</div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-6 gap-2 text-center mb-4 bg-red-800/5 p-2 rounded">
-                {Object.entries({STR: stats.str, DEX: stats.dex, CON: stats.con, INT: stats.int, WIS: stats.wis, CHA: stats.cha}).map(([key, val]) => (
-                <div key={key} className="flex flex-col">
-                    <span className="text-[10px] font-bold text-stone-500 font-sans">{key}</span>
-                    <span className="font-bold text-lg">{val}</span>
-                    <span className="text-xs text-stone-500">{val >= 10 ? `+${Math.floor((val-10)/2)}` : Math.floor((val-10)/2)}</span>
-                </div>
-                ))}
-            </div>
-
-            <div className="space-y-3">
-                <h4 className="border-b border-red-800 text-red-800 font-bold uppercase text-sm tracking-widest mb-2">Actions</h4>
-                {stats.actions.map((action, i) => (
-                <div key={i} className="text-sm">
-                    <span className="font-bold italic text-stone-900">{action.name}.</span> <span className="text-stone-800">{action.desc}</span>
-                </div>
-                ))}
-            </div>
-            </div>
-        );
-
-        // --- SUB-SCREENS ---
-
-        const ChangelogScreen = () => (
-            <div className="space-y-6">
-                <h2 className="text-2xl font-serif text-stone-200 mb-4 px-2">Logbook Updates</h2>
-                <div className="space-y-4">
-                    {CHANGELOG_DATA.map((log, idx) => (
-                        <Card key={idx} className="relative overflow-hidden group">
-                            <div className="flex justify-between items-start mb-2">
-                                <div>
-                                    <h3 className="text-amber-500 font-bold text-lg">{log.title}</h3>
-                                    <span className="text-stone-500 text-xs font-mono">v{log.version} • {log.date}</span>
-                                </div>
-                                {idx === 0 && <span className="bg-amber-900/30 text-amber-200 text-xs px-2 py-1 rounded border border-amber-900/50">Latest</span>}
-                            </div>
-                            <ul className="list-disc list-inside text-stone-400 text-sm space-y-1 ml-1">
-                                {log.changes.map((change, i) => (
-                                    <li key={i}>{change}</li>
-                                ))}
-                            </ul>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-        );
-
-        const ExpeditionScreen = () => {
-            const [day, setDay] = useState(1);
-            const [weather, setWeather] = useState(WEATHER_EFFECTS[3]);
-            const [hexes, setHexes] = useState(0);
-            const [water, setWater] = useState(true);
-            const [randomEvent, setRandomEvent] = useState(null);
-
-            const advanceDay = () => {
-            setDay(d => d + 1);
-            const roll = Math.floor(Math.random() * WEATHER_EFFECTS.length);
-            setWeather(WEATHER_EFFECTS[roll]);
-            setWater(false); // Reset water tracking
-            setRandomEvent(null);
-            };
-
-            const rollEncounter = () => {
-            const roll = Math.floor(Math.random() * RANDOM_ENCOUNTERS.length);
-            setRandomEvent(RANDOM_ENCOUNTERS[roll]);
-            };
-
-            return (
-            <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Day Tracker */}
-                <Card className="flex flex-col justify-between items-center text-center py-8 bg-stone-900">
-                    <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-2">Expedition Day</h2>
-                    <span className="text-6xl font-black text-amber-500 font-serif">{day}</span>
-                    <div className="flex gap-4 mt-6">
-                    <Button onClick={() => setHexes(h => Math.max(0, h - 1))} variant="secondary">- Hex</Button>
-                    <div className="text-center min-w-[80px]">
-                        <div className="text-2xl font-bold text-stone-200">{hexes}</div>
-                        <div className="text-xs text-stone-500">Hexes</div>
-                    </div>
-                    <Button onClick={() => setHexes(h => h + 1)} variant="secondary">+ Hex</Button>
-                    </div>
-                </Card>
-
-                {/* Weather Widget */}
-                <Card className="relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">{weather.icon}</div>
-                    <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Droplets size={16} /> Weather Report
-                    </h2>
-                    <div className="flex items-start gap-4">
-                    <div className="p-3 bg-stone-800 rounded-lg border border-stone-600">
-                        {weather.icon}
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold text-stone-200">{weather.name}</h3>
-                        <p className="text-stone-400 text-sm mt-1 leading-relaxed">{weather.desc}</p>
-                    </div>
-                    </div>
-                    <div className="mt-6 pt-4 border-t border-stone-800 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-1">
-                        <input 
-                        type="checkbox" 
-                        checked={water} 
-                        onChange={() => setWater(!water)}
-                        id="water-check"
-                        className="w-6 h-6 accent-blue-500 bg-stone-800 border-stone-600 rounded touch-manipulation" 
-                        />
-                        <label htmlFor="water-check" className={`text-sm ${water ? 'text-blue-400' : 'text-red-400'}`}>
-                        {water ? "Water Consumed" : "Water NOT consumed"}
-                        </label>
-                    </div>
-                    <Button onClick={advanceDay} variant="primary" className="text-sm">Long Rest</Button>
-                    </div>
-                </Card>
-                </div>
-
-                {/* Random Encounters Section */}
-                <Card>
-                <div className="flex justify-between items-center mb-4 border-b border-stone-800 pb-2">
-                    <h2 className="text-stone-400 text-sm uppercase tracking-widest flex items-center gap-2">
-                    <Skull size={16} /> Random Encounters
-                    </h2>
-                    <Button onClick={rollEncounter} variant="secondary" className="text-xs h-8">
-                    Roll (1d10)
-                    </Button>
-                </div>
-                
-                {randomEvent ? (
-                    <div className="animate-in fade-in slide-in-from-left-2">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="text-lg md:text-xl font-bold text-stone-200">{randomEvent.name}</h3>
-                        <span className={`text-xs px-2 py-0.5 rounded border ${
-                        randomEvent.type.includes('Combat') ? 'bg-red-900/30 text-red-300 border-red-900/50' : 
-                        randomEvent.type.includes('Social') ? 'bg-blue-900/30 text-blue-300 border-blue-900/50' :
-                        'bg-amber-900/30 text-amber-300 border-amber-900/50'
-                        }`}>
-                        {randomEvent.type}
-                        </span>
-                    </div>
-                    <p className="text-stone-400 text-sm italic border-l-2 border-stone-700 pl-3">
-                        {randomEvent.desc}
-                    </p>
-                    </div>
-                ) : (
-                    <div className="text-center py-4 text-stone-600 text-sm italic">
-                    The jungle is quiet... for now.
-                    </div>
-                )}
-                </Card>
-
-                {/* Jungle Hazards Reference */}
-                <Card>
-                <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <AlertTriangle size={16} /> Jungle Hazards
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {DISEASES.map((d, i) => (
-                    <div key={i} className="bg-stone-950/50 p-3 rounded border border-stone-800">
-                        <h4 className="text-amber-600 font-bold mb-1">{d.name}</h4>
-                        <p className="text-xs text-stone-400">{d.desc}</p>
-                    </div>
-                    ))}
-                </div>
-                </Card>
-            </div>
-            );
-        };
-
-        const HuntScreen = () => {
-            const [biome, setBiome] = useState("Floor");
-            const [contract, setContract] = useState(null);
-            const [clues, setClues] = useState([]);
-            const [showStats, setShowStats] = useState(false);
-            const [foundClues, setFoundClues] = useState([false, false, false]);
-
-            const generateContract = () => {
-            const monsters = ANCIENT_FOREST_ROSTER[biome];
-            const monster = monsters[Math.floor(Math.random() * monsters.length)];
-            
-            // Pick 3 random unique clues
-            const shuffledClues = [...TRACKING_CLUES].sort(() => 0.5 - Math.random());
-            setClues(shuffledClues.slice(0, 3));
-            
-            setContract(monster);
-            setShowStats(false);
-            setFoundClues([false, false, false]);
-            };
-
-            const toggleClue = (index) => {
-            const newFound = [...foundClues];
-            newFound[index] = !newFound[index];
-            setFoundClues(newFound);
-            };
-
-            const allCluesFound = foundClues.every(Boolean);
-
-            return (
-            <div className="space-y-6">
-                <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-                {Object.keys(ANCIENT_FOREST_ROSTER).map(b => (
-                    <button
-                    key={b}
-                    onClick={() => setBiome(b)}
-                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
-                        biome === b 
-                        ? 'bg-amber-600 text-white' 
-                        : 'bg-stone-800 text-stone-400 hover:bg-stone-700'
-                    }`}
-                    >
-                    {b} Zone
-                    </button>
-                ))}
-                </div>
-
-                <div className="text-center py-4">
-                <Button onClick={generateContract} className="w-full md:w-auto mx-auto px-8 py-4 text-lg">
-                    <Search size={20} /> Scout Area
-                </Button>
-                </div>
-
-                {contract && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    
-                    {/* The Monster Card */}
-                    <Card className="lg:col-span-1 border-amber-800/50 bg-stone-900/90 relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-amber-600"></div>
-                        <h3 className="text-stone-500 text-xs font-mono mb-1 uppercase tracking-widest">Target Identified</h3>
-                        <h2 className="text-3xl font-black text-stone-100 font-serif mb-2">{contract.name}</h2>
-                        
-                        <div className="flex gap-2 mb-4">
-                        <span className="px-2 py-0.5 bg-stone-800 text-stone-300 text-xs rounded border border-stone-700">{contract.type}</span>
-                        <span className="px-2 py-0.5 bg-red-900/30 text-red-300 text-xs rounded border border-red-900/50">CR {contract.cr}</span>
-                        </div>
-
-                        <div className="p-3 bg-stone-950 rounded border border-stone-800 mb-4">
-                        <p className="text-amber-500 text-xs font-bold uppercase mb-1">Ecological Traits</p>
-                        <p className="text-stone-300 text-sm italic">{contract.traits}</p>
-                        </div>
-
-                        <Button variant="secondary" onClick={() => setShowStats(!showStats)} className="w-full text-xs">
-                            {showStats ? "Hide Stat Block" : "Reveal Stat Block (DM Only)"}
-                        </Button>
-
-                        {showStats && contract.stats && (
-                        <div className="animate-in slide-in-from-top-2">
-                            <StatBlock stats={contract.stats} />
-                        </div>
-                        )}
-                    </Card>
-
-                    {/* The Tracking Phase */}
-                    <Card className="lg:col-span-2">
-                        <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-stone-400 text-sm uppercase tracking-widest flex items-center gap-2">
-                            <Compass size={16} /> Tracking Signs
-                        </h3>
-                        {allCluesFound && (
-                            <span className="text-green-500 text-xs font-bold uppercase tracking-wider animate-pulse flex items-center gap-1">
-                            <Check size={14} /> Hunt Ready
-                            </span>
-                        )}
-                        </div>
-
-                        <div className="space-y-3">
-                        {clues.map((clue, idx) => (
-                            <button 
-                            key={idx} 
-                            onClick={() => toggleClue(idx)}
-                            className={`w-full flex gap-4 items-start p-3 rounded transition-all border text-left group touch-manipulation active:scale-[0.99] ${
-                                foundClues[idx] 
-                                ? 'bg-amber-900/20 border-amber-800/50' 
-                                : 'bg-transparent border-transparent hover:bg-stone-800 hover:border-stone-700'
-                            }`}
-                            >
-                            <div className={`flex-shrink-0 w-8 h-8 md:w-6 md:h-6 rounded-full flex items-center justify-center text-sm md:text-xs border transition-colors ${
-                                foundClues[idx]
-                                ? 'bg-amber-600 text-stone-900 border-amber-600'
-                                : 'bg-stone-800 text-stone-500 border-stone-600 group-hover:border-stone-500'
-                            }`}>
-                                {foundClues[idx] ? <Check size={14} /> : idx + 1}
-                            </div>
-                            <p className={`text-sm py-1 transition-colors ${foundClues[idx] ? 'text-amber-100/70 line-through' : 'text-stone-300'}`}>
-                                {clue}
-                            </p>
-                            </button>
-                        ))}
-                        </div>
-                        <div className={`mt-6 p-4 border rounded text-center transition-colors duration-300 ${
-                        allCluesFound ? 'bg-green-900/20 border-green-800/50' : 'bg-amber-900/10 border-amber-900/30'
-                        }`}>
-                        <p className={`text-sm ${allCluesFound ? 'text-green-300' : 'text-amber-200'}`}>
-                            {allCluesFound 
-                            ? <span className="font-bold flex items-center justify-center gap-2 flex-wrap"><Target size={16}/> PREY LOCATED! Advantage on Round 1.</span>
-                            : <span><span className="font-bold">DM Tip:</span> Find all 3 signs for Advantage.</span>
-                            }
-                        </p>
-                        </div>
-                    </Card>
-
-                    </div>
-                </div>
-                )}
-            </div>
-            );
-        };
-
-        const CarvingScreen = () => {
-            const [selectedType, setSelectedType] = useState("Beast");
-            const [loot, setLoot] = useState([]);
-            const [dc, setDc] = useState(10);
-
-            const rollLoot = () => {
-            const parts = MONSTER_PARTS[selectedType];
-            const rolled = [];
-            const count = Math.floor(Math.random() * 2) + 1; // 1-2 items
-
-            for (let i = 0; i < count; i++) {
-                if (parts) {
-                    rolled.push(parts[Math.floor(Math.random() * parts.length)]);
-                }
-            }
-            setLoot(rolled);
-            setDc(10 + Math.floor(Math.random() * 5)); // DC 10-15
-            };
-
-            return (
-            <div className="max-w-2xl mx-auto space-y-8">
-                <Card className="text-center py-8">
-                <Bone className="w-12 h-12 text-stone-600 mx-auto mb-4" />
-                <h2 className="text-2xl font-serif text-stone-200 mb-6">Field Carving Station</h2>
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-8 px-4">
-                    {Object.keys(MONSTER_PARTS).map(type => (
-                    <button
-                        key={type}
-                        onClick={() => setSelectedType(type)}
-                        className={`p-3 md:p-2 rounded text-sm border transition-all ${
-                        selectedType === type 
-                        ? 'bg-amber-900/50 border-amber-600 text-amber-100' 
-                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-750'
-                        }`}
-                    >
-                        {type}
-                    </button>
-                    ))}
-                </div>
-
-                <Button onClick={rollLoot} variant="primary" className="mx-auto w-full md:w-1/2">
-                    Attempt Carve (Survival Check)
-                </Button>
-                </Card>
-
-                {loot.length > 0 && (
-                <Card className="animate-in zoom-in-95 duration-200 border-green-900/30 bg-stone-900">
-                    <div className="flex justify-between items-center mb-4 border-b border-stone-800 pb-2">
-                    <h3 className="text-green-500 font-bold uppercase tracking-wide text-sm">Carving Results</h3>
-                    <span className="text-xs text-stone-500 font-mono">DC {dc} Survival</span>
-                    </div>
-                    
-                    <ul className="space-y-3">
-                    {loot.map((item, idx) => (
-                        <li key={idx} className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
-                        <span className="text-stone-200 text-lg">{item}</span>
-                        </li>
-                    ))}
-                    </ul>
-                    
-                    <div className="mt-6 text-xs text-stone-500 bg-stone-950 p-3 rounded">
-                    <strong>Crafting Note:</strong> Items can be brought to a craftsman in Port Nyanzaru. 
-                    3 Common parts = 1 Uncommon Magic Item. 1 Rare part = Key ingredient for Rare Item.
-                    </div>
-                </Card>
-                )}
-            </div>
-            );
-        };
-
-        const ChultbrewScreen = () => {
-            const [subTab, setSubTab] = useState('enemies');
-            
-            // Lazy initialization for localStorage
-            const [customEnemies, setCustomEnemies] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('chult_custom_enemies');
-                    return saved ? JSON.parse(saved) : [
-                        { name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }
-                    ];
-                } catch (e) {
-                    console.error("Failed to load enemies from local storage", e);
-                    return [{ name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }];
-                }
-            });
-
-            const [customItems, setCustomItems] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('chult_custom_items');
-                    return saved ? JSON.parse(saved) : [
-                        { name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }
-                    ];
-                } catch (e) {
-                    console.error("Failed to load items from local storage", e);
-                    return [{ name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }];
-                }
-            });
-
-            // Effects to save data
-            useEffect(() => {
-                localStorage.setItem('chult_custom_enemies', JSON.stringify(customEnemies));
-            }, [customEnemies]);
-
-            useEffect(() => {
-                localStorage.setItem('chult_custom_items', JSON.stringify(customItems));
-            }, [customItems]);
-
-            // Form states
-            const [enemyForm, setEnemyForm] = useState({ name: '', cr: '', type: 'Beast', notes: '' });
-            const [itemForm, setItemForm] = useState({ name: '', type: 'Weapon', effect: '' });
-
-            const addEnemy = () => {
-            if (!enemyForm.name) return;
-            setCustomEnemies([...customEnemies, enemyForm]);
-            setEnemyForm({ name: '', cr: '', type: 'Beast', notes: '' });
-            };
-
-            const addItem = () => {
-            if (!itemForm.name) return;
-            setCustomItems([...customItems, itemForm]);
-            setItemForm({ name: '', type: 'Weapon', effect: '' });
-            };
-
-            const removeEnemy = (idx) => setCustomEnemies(customEnemies.filter((_, i) => i !== idx));
-            const removeItem = (idx) => setCustomItems(customItems.filter((_, i) => i !== idx));
-
-            return (
-            <div className="space-y-6">
-                <div className="flex gap-2 border-b border-stone-800 pb-2">
-                <button 
-                    onClick={() => setSubTab('enemies')}
-                    className={`flex-1 px-4 py-3 md:py-2 font-bold text-sm rounded-t-lg transition-colors ${
-                    subTab === 'enemies' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'
-                    }`}
-                >
-                    <div className="flex items-center justify-center gap-2"><Skull size={16}/> Bestiary</div>
-                </button>
-                <button 
-                    onClick={() => setSubTab('items')}
-                    className={`flex-1 px-4 py-3 md:py-2 font-bold text-sm rounded-t-lg transition-colors ${
-                    subTab === 'items' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'
-                    }`}
-                >
-                    <div className="flex items-center justify-center gap-2"><Shield size={16}/> Armory</div>
-                </button>
-                </div>
-
-                {subTab === 'enemies' ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Add Enemy Form */}
-                    <Card className="h-fit">
-                    <h3 className="text-stone-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">
-                        <Plus size={14}/> Add Homebrew Enemy
-                    </h3>
-                    <div className="space-y-3">
-                        <input 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
-                        placeholder="Name"
-                        value={enemyForm.name}
-                        onChange={e => setEnemyForm({...enemyForm, name: e.target.value})}
-                        />
-                        <div className="flex gap-2">
-                        <input 
-                            className="w-1/3 bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
-                            placeholder="CR"
-                            value={enemyForm.cr}
-                            onChange={e => setEnemyForm({...enemyForm, cr: e.target.value})}
-                        />
-                        <select 
-                            className="w-2/3 bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
-                            value={enemyForm.type}
-                            onChange={e => setEnemyForm({...enemyForm, type: e.target.value})}
-                        >
-                            {["Beast", "Monstrosity", "Undead", "Humanoid", "Plant", "Dragon", "Construct", "Fiend"].map(t => <option key={t}>{t}</option>)}
-                        </select>
-                        </div>
-                        <textarea 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
-                        placeholder="Short notes/abilities..."
-                        value={enemyForm.notes}
-                        onChange={e => setEnemyForm({...enemyForm, notes: e.target.value})}
-                        />
-                        <Button onClick={addEnemy} className="w-full text-sm">Add to Roster</Button>
-                    </div>
-                    </Card>
-
-                    {/* Enemy List */}
-                    <div className="md:col-span-2 space-y-3">
-                    {customEnemies.length === 0 && <div className="text-stone-600 text-center py-8 italic">No homebrew enemies yet.</div>}
-                    {customEnemies.map((enemy, idx) => (
-                        <div key={idx} className="bg-stone-900 border border-stone-800 p-4 rounded flex justify-between items-start group hover:border-stone-700 transition-colors">
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-bold text-lg text-stone-200">{enemy.name}</h4>
-                            <span className="text-xs bg-red-900/30 text-red-300 px-1.5 rounded border border-red-900/50">CR {enemy.cr}</span>
-                            <span className="text-xs text-stone-500">{enemy.type}</span>
-                            </div>
-                            <p className="text-stone-400 text-sm italic">{enemy.notes}</p>
-                        </div>
-                        <button onClick={() => removeEnemy(idx)} className="text-stone-600 hover:text-red-500 transition-colors p-2">
-                            <Trash2 size={16} />
-                        </button>
-                        </div>
-                    ))}
-                    </div>
-                </div>
-                ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Add Item Form */}
-                    <Card className="h-fit">
-                    <h3 className="text-stone-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">
-                        <Plus size={14}/> Add Homebrew Item
-                    </h3>
-                    <div className="space-y-3">
-                        <input 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
-                        placeholder="Name"
-                        value={itemForm.name}
-                        onChange={e => setItemForm({...itemForm, name: e.target.value})}
-                        />
-                        <select 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"
-                        value={itemForm.type}
-                        onChange={e => setItemForm({...itemForm, type: e.target.value})}
-                        >
-                        {["Weapon", "Armor", "Potion", "Wondrous Item", "Material"].map(t => <option key={t}>{t}</option>)}
-                        </select>
-                        <textarea 
-                        className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"
-                        placeholder="Effect/Description..."
-                        value={itemForm.effect}
-                        onChange={e => setItemForm({...itemForm, effect: e.target.value})}
-                        />
-                        <Button onClick={addItem} className="w-full text-sm">Forge Item</Button>
-                    </div>
-                    </Card>
-
-                    {/* Item List */}
-                    <div className="md:col-span-2 space-y-3">
-                    {customItems.length === 0 && <div className="text-stone-600 text-center py-8 italic">No homebrew items yet.</div>}
-                    {customItems.map((item, idx) => (
-                        <div key={idx} className="bg-stone-900 border border-stone-800 p-4 rounded flex justify-between items-start group hover:border-stone-700 transition-colors">
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-bold text-lg text-amber-500">{item.name}</h4>
-                            <span className="text-xs bg-stone-800 text-stone-400 px-1.5 rounded">{item.type}</span>
-                            </div>
-                            <p className="text-stone-300 text-sm">{item.effect}</p>
-                        </div>
-                        <button onClick={() => removeItem(idx)} className="text-stone-600 hover:text-red-500 transition-colors p-2">
-                            <Trash2 size={16} />
-                        </button>
-                        </div>
-                    ))}
-                    </div>
-                </div>
-                )}
-            </div>
-            );
-        };
-
-        // --- MAIN APP ---
-
-        const App = () => {
-            const [activeTab, setActiveTab] = useState('expedition');
-            const [isSidebarOpen, setSidebarOpen] = useState(false);
-
-            const navItems = [
-            { id: 'expedition', icon: <Map size={18} />, label: 'Expedition' },
-            { id: 'hunt', icon: <Target size={18} />, label: 'The Hunt' },
-            { id: 'carving', icon: <Sword size={18} />, label: 'Carving' },
-            { id: 'chultbrew', icon: <Beaker size={18} />, label: 'Chultbrew' },
-            { id: 'updates', icon: <History size={18} />, label: 'Updates' },
-            ];
-
-            return (
-            <div className="min-h-screen bg-stone-950 text-stone-200 font-sans selection:bg-amber-900 selection:text-white flex flex-col md:flex-row">
-                {/* Mobile Header */}
-                <div className="md:hidden flex items-center justify-between p-4 bg-stone-900 border-b border-stone-800 sticky top-0 z-20 w-full">
-                <h1 className="text-amber-500 font-bold font-serif tracking-wider">CHULT HUNTER</h1>
-                <button onClick={() => setSidebarOpen(true)} className="p-2 text-stone-400 hover:text-stone-200 active:scale-95 transition-transform">
-                    <Menu size={24} />
-                </button>
-                </div>
-
-                {/* Mobile Sidebar Overlay */}
-                {isSidebarOpen && (
-                    <div 
-                        className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm transition-opacity"
-                        onClick={() => setSidebarOpen(false)}
-                    ></div>
-                )}
-
-                {/* Sidebar Navigation */}
-                <aside className={`
-                    fixed inset-y-0 left-0 z-40 w-72 bg-stone-900 border-r border-stone-800 
-                    transform transition-transform duration-300 ease-out md:translate-x-0 md:static md:h-screen md:w-64
-                    ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
-                `}>
-                    <div className="p-6">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <h1 className="text-2xl font-black font-serif text-amber-500 tracking-wider">NYANZARU<br/>LOGBOOK</h1>
-                                <p className="text-xs text-stone-500 mt-2 uppercase tracking-widest">Monster Hunter Division</p>
-                            </div>
-                            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-stone-400 p-2 hover:text-stone-200 active:scale-95 transition-transform">
-                                <X size={24} />
-                            </button>
-                        </div>
-                    </div>
-
-                    <nav className="px-4 space-y-2 mt-4">
-                    {navItems.map(item => (
-                        <button
-                        key={item.id}
-                        onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
-                        className={`w-full flex items-center gap-4 px-4 py-4 md:py-3 rounded-lg transition-all duration-200 ${
-                            activeTab === item.id 
-                            ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50' 
-                            : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'
-                        }`}
-                        >
-                        {item.icon}
-                        <span className="font-bold text-base md:text-sm">{item.label}</span>
-                        </button>
-                    ))}
-                    </nav>
-                    
-                    <div className="absolute bottom-0 left-0 w-full p-4 border-t border-stone-800 bg-stone-900">
-                    <div className="flex items-center gap-3 text-xs text-stone-500">
-                        <Backpack size={16} />
-                        <span>Inventory Cap: <span className="text-stone-300">Light</span></span>
-                    </div>
-                    </div>
-                </aside>
-
-                {/* Main Content Area */}
-                <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-65px)] md:h-screen scrollbar-hide w-full">
-                    <div className="max-w-4xl mx-auto pb-20 md:pb-0">
-                    {activeTab === 'expedition' && <ExpeditionScreen />}
-                    {activeTab === 'hunt' && <HuntScreen />}
-                    {activeTab === 'carving' && <CarvingScreen />}
-                    {activeTab === 'chultbrew' && <ChultbrewScreen />}
-                    {activeTab === 'updates' && <ChangelogScreen />}
-                    </div>
-                </main>
-            </div>
-            );
-        };
-
-        const root = createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+<!DOCTYPE html><html lang="en"><head>    <meta charset="UTF-8">    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">    <title>Chult Hunter Logbook</title>        <script src="https://cdn.tailwindcss.com"></script>        <script type="importmap">        {            "imports": {                "react": "https://esm.sh/react@18.2.0",                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",                "lucide-react": "https://esm.sh/lucide-react@0.263.1"            }        }    </script>    <script type="module" src="https://esm.sh/run" defer></script>    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>    <style>        /* Custom Scrollbar Hiding */        .scrollbar-hide::-webkit-scrollbar {            display: none;        }        .scrollbar-hide {            -ms-overflow-style: none;            scrollbar-width: none;        }                body {            background-color: #0c0a09; /* stone-950 */            /* iOS Specific: Prevent pull-to-refresh on body to feel more like an app */            overscroll-behavior-y: none;            /* iOS Specific: Smooth scrolling */            -webkit-overflow-scrolling: touch;        }        /* iOS Specific: Remove gray tap highlight */        * {            -webkit-tap-highlight-color: transparent;        }        /* Prevent text selection on UI elements for app-feel */        .select-none {            -webkit-user-select: none;            user-select: none;        }    </style></head><body>    <div id="root"></div>    <script type="text/babel" data-type="module">        import React, { useState, useEffect } from 'react';        import { createRoot } from 'react-dom/client';        import {             Skull, Map, Tent, Droplets, Flame, Wind, Sword, Backpack,             Scroll, Target, Menu, X, Bone, Search, AlertTriangle,             Compass, Shield, Heart, Zap, Check, Beaker, Plus, Trash2, PenTool,            History, BookOpen, Key, Ghost, Lock, ChevronRight, HelpCircle, Eye,            Timer // Added for Initiative        } from 'lucide-react';        // --- DATA LISTS ---        const WEATHER_EFFECTS = [            { name: "Sweltering Heat", icon: <Flame className="w-6 h-6 text-orange-500" />, desc: "CON save (DC 5 + days) or gain exhaustion. Water requirement doubled.", type: "heat" },            { name: "Tropical Storm", icon: <Droplets className="w-6 h-6 text-blue-500" />, desc: "Heavy rain disimposes Disadvantage on Perception. Extinguishes open flames.", type: "rain" },            { name: "Stagnant Mists", icon: <Wind className="w-6 h-6 text-gray-400" />, desc: "Visibility reduced to 60ft. Survival checks to navigate have Disadvantage.", type: "fog" },            { name: "Clear & Humid", icon: <Tent className="w-6 h-6 text-yellow-500" />, desc: "Normal travel pace possible. Insects are particularly biting today.", type: "clear" },            { name: "Ashfall", icon: <Skull className="w-6 h-6 text-gray-500" />, desc: "Ash from the Peaks of Flame. Constitution checks are made with Disadvantage.", type: "ash" }        ];        const RANDOM_ENCOUNTERS = [            { name: "Chwinga Sighting", type: "Social/Buff", desc: "A tiny elemental spirit observes the party. If treated well, grants a Charm (DMG p.228)." },            { name: "Undead Horde", type: "Combat", desc: "2d6 Zombies and 1d4 Ghouls rise from the mud." },            { name: "Emerald Enclave Scouts", type: "Social", desc: "3 Scouts (MM) led by a Druid. Can share map info or trade rations." },            { name: "Pterafolk Raid", type: "Combat", desc: "1d4+2 Pterafolk swoop down to steal shiny objects or food." },            { name: "Mad Monkey Mist", type: "Hazard", desc: "Blue mist drifts in. DC 13 CON save or contract Mad Monkey Fever." },            { name: "Statue of Ubtao", type: "Exploration", desc: "An overgrown maze-statue. Succeeding a DC 15 Religion/Investigation check reveals a hidden cache." },            { name: "Flaming Fist Patrol", type: "Social/Combat", desc: "A heavy patrol demands a 'Geography Tax' or a charter of exploration." },            { name: "Grung Ambush", type: "Combat", desc: "A net trap springs! 2d4 Grung watch from the trees with poisoned blowguns." },            { name: "Aarakocra Patrol", type: "Social", desc: "Birdfolk from Kir Sabal. They warn of a larger threat nearby." },            { name: "Artus Cimber (Rare)", type: "Special", desc: "A man with a glowing ring and a lizardfolk companion (Dragonbait) are camping nearby." }        ];        const TEMPLE_BESTIARY = [            {                name: "Tomb Guardian",                type: "Medium Construct",                cr: "5",                stats: {                    ac: 14, hp: "93 (11d8 + 44)", speed: "30 ft.", init: "-1",                    str: 19, dex: 9, con: 18, int: 6, wis: 10, cha: 5,                    actions: [                        { name: "Multiattack", desc: "Two slam attacks." },                        { name: "Slam", desc: "+7 to hit. Hit: 13 (2d8 + 4) bludgeoning damage." },                        { name: "Berserk", desc: "If HP < 40, roll d6. On 6, attacks nearest creature." },                        { name: "Lightning Absorption", desc: "Healed by lightning damage." }                    ]                }            },            {                name: "Skeleton Key",                type: "Small Undead",                cr: "1",                stats: {                    ac: 14, hp: "45 (10d6 + 10)", speed: "30 ft.", init: "+4",                    str: 10, dex: 18, con: 12, int: 6, wis: 8, cha: 5,                    actions: [                        { name: "Headbutt", desc: "+6 to hit. Hit: 6 (1d4 + 4) bludgeoning damage." },                        { name: "Evasive", desc: "Can disengage as a bonus action." }                    ]                }            },            {                name: "Stone Juggernaut",                type: "Large Construct",                cr: "12",                stats: {                    ac: 17, hp: "157 (15d10 + 75)", speed: "50 ft. (can't turn)", init: "-1",                    str: 24, dex: 9, con: 20, int: 3, wis: 11, cha: 1,                    actions: [                        { name: "Devastating Roll", desc: "Move straight line. Dex DC 15 or 55 (10d10) bludgeoning. Half on save." },                        { name: "Object", desc: "Immutable form. Immune to poison, psychic, non-magical weapons." }                    ]                }            },            {                name: "Belchorzh (Invisible)",                type: "Large Aberration",                cr: "13",                stats: {                    ac: 18, hp: "180 (19d10 + 76)", speed: "0 ft., fly 20 ft. (hover)", init: "+2",                    str: 10, dex: 14, con: 18, int: 17, wis: 15, cha: 17,                    actions: [                        { name: "Invisibility", desc: "Permanently invisible. Attacks against it have Disadvantage." },                        { name: "Eye Rays", desc: "Fires 3 random rays (Charm, Paralyze, Fear, Slow, Enervation, Telekinetic, Sleep, Petrification, Disintegration, Death). DC 16." },                        { name: "Antimagic Cone", desc: "150ft cone. Magic doesn't work inside." }                    ]                }            },            {                name: "Sewn Sister (Night Hag)",                type: "Medium Fiend",                cr: "5 (Cov: 7)",                stats: {                    ac: 17, hp: "112 (15d8 + 45)", speed: "30 ft.", init: "+2",                    str: 18, dex: 15, con: 16, int: 16, wis: 14, cha: 16,                    actions: [                        { name: "Claws", desc: "+7 to hit. Hit: 13 (2d8 + 4) slash. Magical." },                        { name: "Etherealness", desc: "Enters Ethereal Plane." },                        { name: "Coven Spells", desc: "Shared slots. Polymorph, Phantasmal Killer, Eyebite, Counterspell." },                        { name: "Nightmare Haunting", desc: "Touch sleeping creature. Reduces max HP." }                    ]                }            },            {                name: "The Atropal",                type: "Huge Undead",                cr: "13",                stats: {                    ac: 19, hp: "225 (30d12 + 30)", speed: "0 ft., fly 50 ft. (hover)", init: "+2",                    str: 19, dex: 14, con: 12, int: 25, wis: 19, cha: 24,                    actions: [                        { name: "Touch", desc: "+9 to hit. Hit: 10 necrotic. Target CON save DC 19 or Exhaustion." },                        { name: "Ray of Cold", desc: "+12 to hit. Hit: 21 (6d6) cold." },                        { name: "Wail (Recharge 6)", desc: "120ft. DC 19 CON save or 1 level Exhaustion." },                        { name: "Negative Energy Aura", desc: "30ft. Creatures can't regain HP." }                    ]                }            },            {                name: "Acererak",                type: "Medium Undead",                cr: "23",                stats: {                    ac: 21, hp: "285 (21d8 + 190)", speed: "30 ft., fly 40 ft.", init: "+3",                    str: 13, dex: 16, con: 20, int: 27, wis: 21, cha: 20,                    actions: [                        { name: "Staff +8", desc: "+15 to hit. Hit: 7 (1d6 + 4) bludgeoning + 10 (3d6) necrotic." },                        { name: "Spells", desc: "At-will: Ray of Sickness. 3/day: Counterspell. 1/day: Power Word Kill, Time Stop, Maze." },                        { name: "Turn Immunity", desc: "Cannot be turned." },                        { name: "Legendary Actions", desc: "3/turn. Cast Spell, Frightening Gaze (DC 20), Disrupt Life (20ft, 6d6 necrotic)." }                    ]                }            }        ];        const TRICKSTER_GODS = [            { name: "Moa", animal: "Jaculi", align: "LG", power: "Invisibility (Action, at-will)", flaw: "I must always speak the truth.", stat: "Invisible" },            { name: "Shagambi", animal: "Kamadan", align: "NG", power: "Extra Attack (Generic)", flaw: "I never show mercy to evildoers.", stat: "Extra Hit" },            { name: "Kubazan", animal: "Froghemoth", align: "CG", power: "STR becomes 23", flaw: "I am fearless and take risks.", stat: "STR 23" },            { name: "Wongo", animal: "Su-Monster", align: "CN", power: "Psionic Stun (Action, DC 16)", flaw: "I act without concern for safety.", stat: "Stun DC16" },            { name: "I'jin", animal: "Almiraj", align: "CN", power: "DEX becomes 23", flaw: "I am flighty and unpredictable.", stat: "DEX 23" },            { name: "Unkh", animal: "Flail Snail", align: "N", power: "CON becomes 23", flaw: "I am incapable of making decisions.", stat: "CON 23" },            { name: "Nangnang", animal: "Grung", align: "NE", power: "Spider Climb (at-will)", flaw: "I greedily hoard things.", stat: "Climb" },            { name: "Papazotl", animal: "Eblis", align: "LE", power: "Immune to Surprise/Charm", flaw: "I am bossy and bow to no one.", stat: "Alert" },            { name: "Obo'laka", animal: "Zorbo", align: "LN", power: "+1 AC & Saves (Magic Ring)", flaw: "I am risk-averse and obsessive.", stat: "+1 AC" }        ];        const SKELETON_KEYS = [            { shape: "Triangle", desc: "Level 1 (Dwarves)" },            { shape: "Square", desc: "Level 2 (Fabrication)" },            { shape: "Pentagon", desc: "Level 3 (Banquet)" },            { shape: "Hexagon", desc: "Level 4 (Candle)" },            { shape: "Octagon", desc: "Level 5 (Throne)" }        ];        const DUNGEON_LEVELS = [            {                id: 1,                title: "L1: Rotting Halls",                subtitle: "Moa & Wongo",                notes: [                    { title: "Devil Face Entrance", text: "Entering the mouth is safe. The riddle warns against the other paths. DC 20 Perception to see the secret door in the back of the mouth." },                    { title: "Wongo's Tomb (Su-Monster)", text: "Puzzle: 'Better to be...' Players must pour water into the correct fist. Answer: Pour water into the CENTER fist (Friend of the Sorrowful). Combat triggers if wrong." },                    { title: "Moa's Tomb (Jaculi)", text: "Puzzle: The Skull always lies. The Staff implies the Skull speaks true. Solution: Trust the Staff, ignore the Skull." },                    { title: "River", text: "Flows to Level 5. Aboleth is aware of anyone in the water." }                ]            },            {                id: 2,                title: "L2: Dungeon of Deception",                subtitle: "Papazotl & Nangnang",                notes: [                    { title: "Gravity Ring (False Tomb)", text: "The grand sarcophagus is a trap. Touching it reverses gravity. The real path is a secret door in the hallway wall." },                    { title: "Nangnang's Tomb (Grung)", text: "To open: A player must carry a 'chief' (another player) across the river. Froghemoth tracks are a red herring for the god type." },                    { title: "Papazotl's Tomb (Eblis)", text: "Logic Grid Puzzle. Solution: The sequence of bowing to the statues. The text hints at 'submission'. Combat with clay gladiators if failed." },                    { title: "Withers' Office", text: "If the party finds this, they can disrupt tomb operations. Withers tries to flee to Level 4 via stairs." }                ]            },            {                id: 3,                title: "L3: Vault of Reflection",                subtitle: "I'jin & Kubazan",                notes: [                    { title: "Spinning Cylinder", text: "If a player gets trapped, they must not touch the walls (Disintegrate). They must fly or crawl perfectly center. DC 15 Dexterity." },                    { title: "I'jin's Tomb (Almiraj)", text: "Floor Puzzle: Players must not step on the same tile twice. They must navigate the maze without retracing steps. Solution involves pathfinding logic." },                    { title: "Kubazan's Tomb (Froghemoth)", text: "Ritual requires a specific offering (Old Omuan coins found nearby) and a test of strength (Athletics check) to open the sarcophagus." },                    { title: "Reflecting Hall", text: "Doppelgangers mirror party movements. Attacking the reflection damages the player." }                ]            },            {                id: 4,                title: "L4: Chambers of Horror",                subtitle: "Shagambi & Unkh",                notes: [                    { title: "Mirror of Life Trapping", text: "DC 15 Charisma save or be sucked in. Smashing it releases everyone (including enemies stored inside)." },                    { title: "Shagambi's Tomb (Kamadan)", text: "Combat arena. The golems only fight back if attacked. Players must reach the sarcophagus without attacking to prove they are 'noble'. (Actually, they just need to defeat the golems, but the text suggests mercy)." },                    { title: "Unkh's Tomb (Flail Snail)", text: "Keys puzzle. Several colored keys. Merging them creates the correct key. Overthinking it causes damage." },                    { title: "Belchorzh (Invisible Beholder)", text: "Guards the vault. The spheres are magnetic (metal armor sticks). Spores in the air cause blindness." }                ]            },            {                id: 5,                title: "L5: Gears of Hate",                subtitle: "The Mechanism",                notes: [                    { title: "The Gears Mechanics", text: "3 massive gears rotate. Players must configure them to align tunnels. Config 1: Access West. Config 2: Access East. Config 3: Access Control Room." },                    { title: "The Aboleth", text: "Resides in the water. Will try to enslave the strongest party member. Can communicate telepathically." },                    { title: "Wardrobe Trap", text: "The black wardrobe destroys non-magical items. Do not climb inside." },                    { title: "Golden Mastodon", text: "Key to the final level. Needs the 5 Skeleton Keys to operate." }                ]            },            {                id: 6,                title: "L6: Cradle of Death God",                subtitle: "Finale",                notes: [                    { title: "Sewn Sisters", text: "Peggy Deadbells, Baggy Nanna, Widow Groat. They test the party with riddles before combat. Night Hag Coven stats. Focus one down to break the Coven casting." },                    { title: "The Atropal", text: "Floating undead fetus. Vulnerable to Radiant. AC 19. If it cries (Wail), DC 22 CON save or Exhaustion. Heals from the Soulmonger tentacles." },                    { title: "The Soulmonger", text: "Must be destroyed (AC 15, HP 200). Tentacles grapple. Destroying struts makes it collapse into lava." },                    { title: "Acererak", text: "Appears when Atropal dies. Doesn't want to melee. Flies, casts Time Stop, Power Word Kill. Leaves if he drops below 100 HP. Trickster Gods grant 50 Temp HP per round during this fight." }                ]            }        ];        const CHANGELOG_DATA = [            { version: "1.9", date: "Latest", title: "Initiative Update", changes: ["Added Initiative (Init) bonuses to all stat blocks", "Dynamic Init calculation based on DEX"] },            { version: "1.8", date: "Previous", title: "Temple Bestiary", changes: ["Added full Stat Blocks for Dungeon Bosses", "Added Tomb Guardian & Skeleton Key stats", "Added Bestiary sub-tab to Guide"] },            { version: "1.7", date: "Previous", title: "Dungeon Master Guide", changes: ["Added Level 1-6 Walkthroughs", "Added Puzzle Solutions", "Added Boss Mechanics (Acererak/Atropal)"] },            { version: "1.6", date: "Previous", title: "Temple Guide", changes: ["Added Temple of the Nine Gods Guide", "Added Trickster God tracker", "Added Skeleton Key checklist"] },            { version: "1.5", date: "Previous", title: "Complete Roster", changes: ["Added normal Chult monsters (T-Rex, Raptors, etc.)", "Added 'Ruins' biome to Hunt Board", "Integrated 5e stats for all new monsters"] },        ];        const ANCIENT_FOREST_ROSTER = {            "Floor": [            {                 name: "Jagras Pack",                 type: "Medium Beast",                 cr: "1/2",                 traits: "Pack Tactics, Swarm",                stats: {                ac: 12, hp: "22 (4d8 + 4)", speed: "30 ft.",                str: 12, dex: 15, con: 12, int: 3, wis: 12, cha: 6,                actions: [                    { name: "Bite", desc: "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage." },                    { name: "Swarm Tactics", desc: "The pack has advantage on an attack roll against a creature if at least one of the pack's allies is within 5 ft. of the creature." }                ]                }            },            {                 name: "Velociraptor Pack",                 type: "Tiny Beast",                 cr: "1/4",                 traits: "Pack Tactics, Ambush",                stats: {                ac: 13, hp: "10 (3d4 + 3)", speed: "30 ft.",                str: 6, dex: 14, con: 13, int: 4, wis: 12, cha: 6,                actions: [                    { name: "Multiattack", desc: "Two attacks: one with bite, one with claws." },                    { name: "Bite", desc: "+4 to hit. Hit: 5 (1d6 + 2) piercing damage." }                ]                }            },            {                 name: "Great Jagras",                 type: "Large Monstrosity",                 cr: "2",                 traits: "Swallow, Bloat Mode",                stats: {                ac: 13, hp: "52 (7d10 + 14)", speed: "40 ft.",                str: 16, dex: 14, con: 14, int: 3, wis: 12, cha: 6,                actions: [                    { name: "Multiattack", desc: "The Great Jagras makes two attacks: one with its bite and one with its claws." },                    { name: "Bite", desc: "+5 to hit, reach 5 ft. Hit: 10 (2d6 + 3) piercing damage. If target is Medium or smaller, it is grappled (escape DC 13)." },                    { name: "Swallow", desc: "The Jagras makes a bite attack against a grappled creature. If hit, the creature is swallowed. Swallowed creature is blinded/restrained and takes 7 (2d6) acid damage at start of Jagras' turn." }                ]                }            },            {                 name: "Kamadan",                 type: "Large Monstrosity",                 cr: "4",                 traits: "Sleep Breath, Snakes",                stats: {                ac: 13, hp: "67 (9d10 + 18)", speed: "30 ft.",                str: 16, dex: 16, con: 14, int: 3, wis: 14, cha: 7,                actions: [                    { name: "Multiattack", desc: "Two attacks: one bite/snakes, one with claws." },                    { name: "Sleep Breath (Recharge 5-6)", desc: "30ft cone. DC 12 CON save or unconscious for 10 mins." }                ]                }            },            {                 name: "Girallon",                 type: "Large Monstrosity",                 cr: "4",                 traits: "Aggressive, Climb",                stats: {                ac: 13, hp: "59 (7d10 + 21)", speed: "40 ft., climb 40 ft.",                str: 18, dex: 16, con: 16, int: 5, wis: 12, cha: 7,                actions: [                    { name: "Multiattack", desc: "Five attacks: one bite, four claws." },                    { name: "Rend", desc: "If the girallon hits with two or more claw attacks, target takes extra 11 (2d10) damage." }                ]                }            },            {                 name: "Zombie T-Rex",                 type: "Huge Undead",                 cr: "8",                 traits: "Vomit Zombies, Stench",                stats: {                ac: 14, hp: "136 (13d12 + 52)", speed: "40 ft.",                str: 25, dex: 6, con: 19, int: 2, wis: 8, cha: 5,                actions: [                    { name: "Multiattack", desc: "One bite attack." },                    { name: "Bite", desc: "+10 to hit. Hit: 33 (4d12 + 7) piercing. Grappled (escape DC 17)." },                    { name: "Vomit Zombies (Recharge 6)", desc: "Spews 1d4 zombies into unoccupied spaces within 10 ft." }                ]                }            }            ],            "Canopy": [            {                 name: "Tobi-Kadachi",                 type: "Large Monstrosity",                 cr: "5",                 traits: "Static Charge, Glide",                stats: {                ac: 15, hp: "82 (11d10 + 22)", speed: "40 ft., climb 40 ft.",                str: 14, dex: 18, con: 14, int: 6, wis: 14, cha: 8,                actions: [                    { name: "Multiattack", desc: "Makes two tail attacks." },                    { name: "Electrified Tail", desc: "+7 to hit, reach 10 ft. Hit: 8 (1d8 + 4) bludgeoning plus 9 (2d8) lightning damage. Target must succeed DC 14 CON save or be Stunned until end of next turn." },                    { name: "Static Build Up", desc: "Bonus Action. Tobi-Kadachi moves up to its speed without provoking opportunity attacks. Its next attack deals max lightning damage." }                ]                }            },            {                 name: "Su-Monster",                 type: "Medium Monstrosity",                 cr: "1",                 traits: "Psychic Crush, Hanging",                stats: {                ac: 12, hp: "27 (5d8 + 5)", speed: "30 ft., climb 30 ft.",                str: 14, dex: 15, con: 12, int: 9, wis: 11, cha: 9,                actions: [                    { name: "Multiattack", desc: "Two attacks: one bite, one claws." },                    { name: "Psychic Crush (Recharge 5-6)", desc: "Target within 30ft. DC 12 WIS save or 17 (3d8+4) psychic damage and stunned." }                ]                }            },            {                 name: "Rathalos",                 type: "Huge Dragon",                 cr: "11",                 traits: "Flyby, Poison Talons",                stats: {                ac: 18, hp: "178 (17d12 + 68)", speed: "40 ft., fly 80 ft.",                str: 23, dex: 14, con: 19, int: 10, wis: 14, cha: 17,                actions: [                    { name: "Multiattack", desc: "One Bite, two Claws." },                    { name: "Bite", desc: "+10 to hit. Hit: 17 (2d10 + 6) piercing plus 7 (2d6) fire." },                    { name: "Poison Talons", desc: "+10 to hit. Hit: 13 (2d6 + 6) slashing. Target must succeed DC 16 CON save or be Poisoned for 1 minute." },                    { name: "Fireball Breath (Recharge 5-6)", desc: "150ft range, 20ft radius sphere. DC 17 DEX save. 49 (14d6) fire damage on fail, half on success." }                ]                }            }            ],            "River": [            {                 name: "Plesiosaurus",                 type: "Large Beast",                 cr: "2",                 traits: "Hold Breath, Bite",                stats: {                ac: 13, hp: "68 (8d10 + 24)", speed: "20 ft., swim 40 ft.",                str: 18, dex: 15, con: 16, int: 2, wis: 12, cha: 5,                actions: [                    { name: "Bite", desc: "+6 to hit, reach 10 ft. Hit: 14 (3d6 + 4) piercing damage." }                ]                }            },            {                 name: "Aldani (Lobsterfolk)",                 type: "Medium Monstrosity",                 cr: "1",                 traits: "Diplomatic, Grapple",                stats: {                ac: 14, hp: "49 (9d8 + 9)", speed: "30 ft., swim 30 ft.",                str: 13, dex: 10, con: 12, int: 10, wis: 14, cha: 10,                actions: [                    { name: "Multiattack", desc: "Two claw attacks." },                    { name: "Claw", desc: "+3 to hit. Hit: 6 (1d10 + 1) slashing. Target is grappled (escape DC 11)." }                ]                }            },            {                 name: "Giant Crocodile",                 type: "Huge Beast",                 cr: "5",                 traits: "Stealth, Hold Breath",                stats: {                ac: 14, hp: "85 (9d12 + 27)", speed: "30 ft., swim 50 ft.",                str: 21, dex: 9, con: 17, int: 2, wis: 10, cha: 7,                actions: [                    { name: "Multiattack", desc: "Two attacks: one bite, one tail." },                    { name: "Bite", desc: "+8 to hit. Hit: 21 (3d10 + 5) piercing. Target is grappled (escape DC 16)." }                ]                }            },            {                 name: "Anjanath",                 type: "Huge Monstrosity",                 cr: "9",                 traits: "Aggressive, Enrage",                stats: {                ac: 15, hp: "147 (14d12 + 56)", speed: "50 ft.",                str: 22, dex: 12, con: 18, int: 4, wis: 12, cha: 7,                actions: [                    { name: "Multiattack", desc: "One Bite, one Tail." },                    { name: "Bite", desc: "+10 to hit, reach 10 ft. Hit: 25 (3d12 + 6) piercing damage." },                    { name: "Flame Breath (Recharge 5-6)", desc: "30ft cone. DC 16 DEX save. 42 (12d6) fire damage. Can only be used when Enraged (below half HP)." },                    { name: "Aggressive Charge", desc: "Bonus Action. Move up to speed towards a hostile creature." }                ]                }            },            {                 name: "Sarcosuchus",                 type: "Gargantuan Beast",                 cr: "7",                 traits: "Death Roll, Ambush",                stats: {                ac: 15, hp: "137 (11d20 + 22)", speed: "40 ft., swim 50 ft.",                str: 23, dex: 10, con: 18, int: 2, wis: 10, cha: 7,                actions: [                    { name: "Bite", desc: "+9 to hit. Hit: 28 (4d10 + 6) piercing. Restrained (escape DC 17)." },                    { name: "Death Roll", desc: "Bonus Action against restrained target. 22 (4d10) bludgeoning damage." }                ]                }            }            ],            "Ruins": [            {                 name: "Batiri Goblin Stack",                 type: "Medium Humanoid",                 cr: "1/2",                 traits: "Battle Stack, Madness",                stats: {                ac: 15, hp: "30 (stack of 4)", speed: "30 ft.",                str: 10, dex: 14, con: 10, int: 10, wis: 8, cha: 8,                actions: [                    { name: "Multiattack", desc: "Makes as many attacks as goblins in stack." },                    { name: "Spear", desc: "+4 to hit. Hit: 5 (1d6 + 2) piercing damage." },                    { name: "Topple", desc: "If the stack takes 10+ damage in one turn, DC 10 DEX save or collapse." }                ]                }            },            {                 name: "Yuan-ti Malison",                 type: "Medium Monstrosity",                 cr: "3",                 traits: "Shapechanger, Magic Res",                stats: {                ac: 12, hp: "66 (12d8 + 12)", speed: "30 ft.",                str: 16, dex: 14, con: 13, int: 14, wis: 12, cha: 16,                actions: [                    { name: "Multiattack", desc: "Two scimitar or longbow attacks." },                    { name: "Scimitar", desc: "+5 to hit. Hit: 6 (1d6 + 3) slashing + 7 (2d6) poison." },                    { name: "Suggestion", desc: "Can cast Suggestion (DC 13) 3/day." }                ]                }            },            {                 name: "Yellow Musk Creeper",                 type: "Medium Plant",                 cr: "2",                 traits: "Zombify, Charm",                stats: {                ac: 5, hp: "60 (11d8 + 11)", speed: "5 ft., climb 5 ft.",                str: 12, dex: 1, con: 12, int: 1, wis: 10, cha: 3,                actions: [                    { name: "Touch", desc: "+3 to hit. Hit: 13 (3d8) psychic. DC 11 WIS save or Charmed." },                    { name: "Yellow Musk", desc: "A charmed humanoid reduced to 0 HP dies and becomes a Yellow Musk Zombie in 24h." }                ]                }            },            {                 name: "Stone Golem",                 type: "Large Construct",                 cr: "10",                 traits: "Slow, Magic Immunity",                stats: {                ac: 17, hp: "178 (17d10 + 85)", speed: "30 ft.",                str: 22, dex: 9, con: 20, int: 3, wis: 11, cha: 1,                actions: [                    { name: "Multiattack", desc: "Two slam attacks." },                    { name: "Slam", desc: "+10 to hit. Hit: 19 (3d8 + 6) bludgeoning." },                    { name: "Slow (Recharge 5-6)", desc: "10ft range. DC 17 WIS save or Slowed for 1 minute." }                ]                }            }            ]        };        const MONSTER_PARTS = {            Beast: ["Thick Hide (AC craft)", "Sharp Fang (Dagger craft)", "Beast Heart (Potion)", "Adrenal Gland (Speed potion)", "Jagras Mane (Stealth gear)"],            Dragon: ["Draconic Scale (Resistance)", "Inferno Sac (Fire Weapon)", "Rath Wingtalon (Sword craft)", "Plate (Heavy Armor)", "Wyvern Gem (Rare Focus)"],            Monstrosity: ["Mutated Organ (Alchemy)", "Electro Sac (Lightning ammo)", "Toxic Sac (Poison)", "Strange Tentacle (Whip craft)", "Wyvern Gem (Rare Focus)"],        };        const DISEASES = [            { name: "Throat Leeches", desc: "Contaminated water. gain 1 level of exhaustion on failed CON save (DC 12) every 24h." },            { name: "Shivering Sickness", desc: "Insect bites. Disadvantage on Ability Checks/Attacks. Regain only half hit points." },            { name: "Mad Monkey Fever", desc: "Mist/Bites. Long term madness (1d100 hours). Hallucinations." }        ];        const TRACKING_CLUES = [            "Deep claw gouges on a mahogany tree, sap oozing fresh.",            "A partially eaten carcass, bones snapped by immense jaw pressure.",            "Strange, acidic mucus dripping from the canopy leaves.",            "The jungle has gone silent here; even the insects are hiding.",            "Massive footprints filled with recent rainwater.",            "Trees knocked over in a distinct, charging path.",            "Scorch marks on the undergrowth, smelling of sulfur.",            "A territory marking made of piled skulls and feathers."        ];        // --- COMPONENTS ---        const Card = ({ children, className = "" }) => (            <div className={`bg-stone-900 border border-stone-700 rounded-lg shadow-xl p-4 ${className}`}>            {children}            </div>        );        const Button = ({ onClick, children, variant = "primary", className = "" }) => {            const baseStyle = "px-4 py-3 md:py-2 rounded font-bold transition-all duration-200 flex items-center justify-center gap-2 select-none touch-manipulation active:scale-[0.98]";            const variants = {            primary: "bg-amber-700 hover:bg-amber-600 text-stone-100 shadow-md border-b-4 border-amber-900 active:border-b-0 active:translate-y-1",            secondary: "bg-stone-700 hover:bg-stone-600 text-stone-200 border border-stone-600",            danger: "bg-red-900/50 hover:bg-red-800 text-red-100 border border-red-800",            ghost: "bg-transparent hover:bg-stone-800 text-stone-400 border border-transparent"            };            return (            <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>                {children}            </button>            );        };        const StatBlock = ({ stats }) => {            // Dynamic Init calculation if not provided            const initBonus = stats.init || (stats.dex ? Math.floor((stats.dex - 10) / 2) : 0);            const initDisplay = typeof initBonus === 'string' ? initBonus : (initBonus >= 0 ? `+${initBonus}` : initBonus);            return (                <div className="bg-[#fdf1dc] text-stone-900 p-4 rounded shadow-inner font-serif border-2 border-amber-900/20 mt-4 relative animate-in zoom-in-95 duration-200">                <div className="absolute top-0 left-0 w-full h-2 bg-red-800/80"></div>                                {/* Header Grid: AC, HP, Speed, INIT */}                <div className="grid grid-cols-4 gap-2 text-center mb-4 pt-4 border-b border-red-800/20 pb-4">                    <div>                        <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">AC</div>                        <div className="text-xl font-bold flex items-center justify-center gap-1">                            <Shield size={16} className="text-stone-400" /> {stats.ac}                        </div>                    </div>                    <div>                        <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">HP</div>                        <div className="text-xl font-bold flex items-center justify-center gap-1">                            <Heart size={16} className="text-red-600" /> {stats.hp.split(' ')[0]}                        </div>                    </div>                    <div>                        <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Spd</div>                        <div className="text-lg font-bold leading-6">{stats.speed.split(',')[0].replace(' ft.', '')}</div>                    </div>                    <div>                        <div className="text-xs uppercase tracking-bold text-stone-500 font-sans">Init</div>                        <div className="text-xl font-bold flex items-center justify-center gap-1">                            <Timer size={16} className="text-blue-600" /> {initDisplay}                        </div>                    </div>                </div>                <div className="grid grid-cols-6 gap-2 text-center mb-4 bg-red-800/5 p-2 rounded">                    {Object.entries({STR: stats.str, DEX: stats.dex, CON: stats.con, INT: stats.int, WIS: stats.wis, CHA: stats.cha}).map(([key, val]) => (                    <div key={key} className="flex flex-col">                        <span className="text-[10px] font-bold text-stone-500 font-sans">{key}</span>                        <span className="font-bold text-lg">{val}</span>                        <span className="text-xs text-stone-500">{val >= 10 ? `+${Math.floor((val-10)/2)}` : Math.floor((val-10)/2)}</span>                    </div>                    ))}                </div>                <div className="space-y-3">                    <h4 className="border-b border-red-800 text-red-800 font-bold uppercase text-sm tracking-widest mb-2">Actions</h4>                    {stats.actions.map((action, i) => (                    <div key={i} className="text-sm">                        <span className="font-bold italic text-stone-900">{action.name}.</span> <span className="text-stone-800">{action.desc}</span>                    </div>                    ))}                </div>                </div>            );        };        // --- SUB-SCREENS ---        const TombGuideScreen = () => {            const [subTab, setSubTab] = useState('levels'); // 'status' or 'levels' or 'bestiary'            const [selectedLevel, setSelectedLevel] = useState(1);            const [expandedMonster, setExpandedMonster] = useState(null);                        // State for status tab            const [possessed, setPossessed] = useState({});            const [keysFound, setKeysFound] = useState([false, false, false, false, false]);            const togglePossession = (index) => setPossessed(prev => ({...prev, [index]: !prev[index]}));            const toggleKey = (index) => {                const newKeys = [...keysFound];                newKeys[index] = !newKeys[index];                setKeysFound(newKeys);            };            const currentLevelData = DUNGEON_LEVELS.find(l => l.id === selectedLevel);            return (                <div className="space-y-4">                    {/* Sub-nav */}                    <div className="flex bg-stone-900 rounded-lg p-1 border border-stone-800">                        <button                             onClick={() => setSubTab('levels')}                            className={`flex-1 py-2 text-xs md:text-sm font-bold rounded transition-colors ${                                subTab === 'levels' ? 'bg-amber-700 text-white shadow' : 'text-stone-400 hover:text-stone-200'                            }`}                        >                            Walkthrough                        </button>                        <button                             onClick={() => setSubTab('bestiary')}                            className={`flex-1 py-2 text-xs md:text-sm font-bold rounded transition-colors ${                                subTab === 'bestiary' ? 'bg-amber-700 text-white shadow' : 'text-stone-400 hover:text-stone-200'                            }`}                        >                            Bestiary                        </button>                        <button                             onClick={() => setSubTab('status')}                            className={`flex-1 py-2 text-xs md:text-sm font-bold rounded transition-colors ${                                subTab === 'status' ? 'bg-amber-700 text-white shadow' : 'text-stone-400 hover:text-stone-200'                            }`}                        >                            Gods & Keys                        </button>                    </div>                    {subTab === 'status' && (                        <div className="animate-in fade-in slide-in-from-right-4 space-y-6">                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">                                {/* Global Effects Card */}                                <Card className="border-purple-900/50 bg-stone-900/90 relative overflow-hidden">                                    <div className="absolute top-0 right-0 p-4 opacity-10"><Ghost size={64} /></div>                                    <h2 className="text-purple-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">                                        <AlertTriangle size={16} /> Tomb Restrictions                                    </h2>                                    <ul className="space-y-2 text-sm text-stone-300">                                        <li className="flex items-start gap-2">                                            <span className="text-red-500">•</span>                                            <span><strong>Planar Block:</strong> Teleportation/Planar travel fails.</span>                                        </li>                                        <li className="flex items-start gap-2">                                            <span className="text-red-500">•</span>                                            <span><strong>Severed Souls:</strong> Resurrection magic automatically fails (Soulmonger).</span>                                        </li>                                        <li className="flex items-start gap-2">                                            <span className="text-red-500">•</span>                                            <span><strong>Meat Grinder:</strong> Death Saving Throws are DC 15 (Optional).</span>                                        </li>                                    </ul>                                </Card>                                {/* Skeleton Keys Tracker */}                                <Card className="border-amber-900/50">                                    <h2 className="text-amber-500 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">                                        <Key size={16} /> Skeleton Keys                                    </h2>                                    <div className="space-y-2">                                        {SKELETON_KEYS.map((key, idx) => (                                            <button                                                 key={idx}                                                onClick={() => toggleKey(idx)}                                                className={`w-full flex items-center justify-between p-2 rounded border transition-colors ${                                                    keysFound[idx] ? 'bg-amber-900/20 border-amber-600 text-amber-100' : 'bg-stone-950 border-stone-800 text-stone-500 hover:border-stone-600'                                                }`}                                            >                                                <div className="flex items-center gap-3">                                                    <div className={`w-4 h-4 rounded-sm border ${keysFound[idx] ? 'bg-amber-500 border-amber-500' : 'border-stone-600'}`}></div>                                                    <span className="font-bold text-sm">{key.shape} Key</span>                                                </div>                                                <span className="text-xs italic opacity-60 hidden md:block">{key.desc}</span>                                            </button>                                        ))}                                    </div>                                </Card>                            </div>                            <h2 className="text-2xl font-serif text-stone-200 px-2 flex items-center gap-2">                                <Ghost className="text-purple-500" /> The Nine Trickster Gods                            </h2>                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">                                {TRICKSTER_GODS.map((god, idx) => (                                    <Card key={idx} className={`relative overflow-hidden transition-all duration-300 ${possessed[idx] ? 'border-purple-500 bg-stone-900' : 'border-stone-800 opacity-80 hover:opacity-100'}`}>                                        <div className="flex justify-between items-start mb-2">                                            <div>                                                <h3 className={`font-bold text-lg font-serif ${possessed[idx] ? 'text-purple-300' : 'text-stone-400'}`}>{god.name}</h3>                                                <span className="text-xs text-stone-500 uppercase tracking-widest">{god.animal} • {god.align}</span>                                            </div>                                            <button                                                 onClick={() => togglePossession(idx)}                                                className={`px-2 py-1 text-xs rounded border transition-colors ${                                                    possessed[idx]                                                     ? 'bg-purple-900/50 text-purple-200 border-purple-500'                                                     : 'bg-stone-800 text-stone-500 border-stone-700 hover:border-stone-500'                                                }`}                                            >                                                {possessed[idx] ? "Possessing" : "Dormant"}                                            </button>                                        </div>                                                                                <div className="space-y-2 mt-3">                                            <div className="p-2 bg-stone-950 rounded border border-stone-800">                                                <span className="text-xs text-green-500 font-bold uppercase block mb-0.5">Power</span>                                                <p className="text-sm text-stone-300">{god.power}</p>                                            </div>                                            <div className="p-2 bg-stone-950 rounded border border-stone-800">                                                <span className="text-xs text-red-500 font-bold uppercase block mb-0.5">Flaw</span>                                                <p className="text-sm text-stone-400 italic">"{god.flaw}"</p>                                            </div>                                        </div>                                    </Card>                                ))}                            </div>                        </div>                    )}                    {subTab === 'bestiary' && (                        <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4">                            <Card className="border-red-900/30">                                <div className="flex items-center gap-3 mb-4">                                    <div className="p-3 bg-red-900/20 rounded-full text-red-500">                                        <Skull size={24} />                                    </div>                                    <div>                                        <h2 className="text-xl font-serif text-stone-200">Temple Bestiary</h2>                                        <p className="text-xs text-stone-500 uppercase tracking-wider">Major Threats & Bosses</p>                                    </div>                                </div>                                <div className="space-y-2">                                    {TEMPLE_BESTIARY.map((monster, idx) => (                                        <div key={idx} className="border border-stone-800 rounded bg-stone-950 overflow-hidden">                                            <button                                                 onClick={() => setExpandedMonster(expandedMonster === idx ? null : idx)}                                                className="w-full flex items-center justify-between p-3 hover:bg-stone-900 transition-colors text-left"                                            >                                                <div className="flex items-center gap-3">                                                    <span className="text-stone-300 font-bold">{monster.name}</span>                                                    <span className="text-xs px-2 py-0.5 rounded bg-stone-900 text-stone-500 border border-stone-800">CR {monster.cr}</span>                                                </div>                                                <ChevronRight size={16} className={`text-stone-600 transition-transform ${expandedMonster === idx ? 'rotate-90' : ''}`} />                                            </button>                                            {expandedMonster === idx && (                                                <div className="p-3 border-t border-stone-800 bg-stone-900/50">                                                    <StatBlock stats={monster.stats} />                                                </div>                                            )}                                        </div>                                    ))}                                </div>                            </Card>                        </div>                    )}                                        {subTab === 'levels' && (                        <div className="animate-in fade-in slide-in-from-left-4">                            {/* Level Selector */}                            <div className="flex overflow-x-auto pb-4 gap-2 scrollbar-hide">                                {DUNGEON_LEVELS.map(level => (                                    <button                                        key={level.id}                                        onClick={() => setSelectedLevel(level.id)}                                        className={`flex-shrink-0 px-4 py-3 rounded-lg border text-left min-w-[140px] transition-all ${                                            selectedLevel === level.id                                             ? 'bg-amber-900/30 border-amber-600 text-amber-100 shadow-lg'                                             : 'bg-stone-900 border-stone-800 text-stone-500 hover:border-stone-700'                                        }`}                                    >                                        <div className="text-xs uppercase tracking-wider opacity-70">Level {level.id}</div>                                        <div className="font-bold text-sm truncate">{level.title.split(': ')[1]}</div>                                    </button>                                ))}                            </div>                            {/* Level Content */}                            {currentLevelData && (                                <div className="space-y-4">                                    <Card className="border-t-4 border-t-amber-600">                                        <div className="flex justify-between items-start mb-6">                                            <div>                                                <h2 className="text-3xl font-black font-serif text-stone-100">{currentLevelData.title}</h2>                                                <p className="text-amber-500 uppercase tracking-widest text-xs mt-1">Key Figures: {currentLevelData.subtitle}</p>                                            </div>                                        </div>                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">                                            {currentLevelData.notes.map((note, idx) => (                                                <div key={idx} className="bg-stone-950/50 p-4 rounded border border-stone-800">                                                    <h3 className="text-stone-300 font-bold text-sm mb-2 flex items-center gap-2">                                                        <HelpCircle size={14} className="text-amber-700"/> {note.title}                                                    </h3>                                                    <p className="text-stone-400 text-sm leading-relaxed">{note.text}</p>                                                </div>                                            ))}                                        </div>                                    </Card>                                    <div className="bg-blue-900/10 border border-blue-900/30 p-4 rounded flex gap-3 items-start">                                        <div className="bg-blue-900/30 p-2 rounded text-blue-400 mt-1">                                            <Search size={16} />                                        </div>                                        <div>                                            <h4 className="text-blue-400 font-bold text-sm">DM Eyes Only</h4>                                            <p className="text-blue-200/70 text-xs mt-1">                                                These notes contain explicit solutions to puzzles. Do not show to players unless you want to give hints.                                            </p>                                        </div>                                    </div>                                </div>                            )}                        </div>                    )}                </div>            );        };        const ChangelogScreen = () => (            <div className="space-y-6">                <h2 className="text-2xl font-serif text-stone-200 mb-4 px-2">Logbook Updates</h2>                <div className="space-y-4">                    {CHANGELOG_DATA.map((log, idx) => (                        <Card key={idx} className="relative overflow-hidden group">                            <div className="flex justify-between items-start mb-2">                                <div>                                    <h3 className="text-amber-500 font-bold text-lg">{log.title}</h3>                                    <span className="text-stone-500 text-xs font-mono">v{log.version} • {log.date}</span>                                </div>                                {idx === 0 && <span className="bg-amber-900/30 text-amber-200 text-xs px-2 py-1 rounded border border-amber-900/50">Latest</span>}                            </div>                            <ul className="list-disc list-inside text-stone-400 text-sm space-y-1 ml-1">                                {log.changes.map((change, i) => (                                    <li key={i}>{change}</li>                                ))}                            </ul>                        </Card>                    ))}                </div>            </div>        );        const ExpeditionScreen = () => {            const [day, setDay] = useState(1);            const [weather, setWeather] = useState(WEATHER_EFFECTS[3]);            const [hexes, setHexes] = useState(0);            const [water, setWater] = useState(true);            const [randomEvent, setRandomEvent] = useState(null);            const advanceDay = () => {            setDay(d => d + 1);            const roll = Math.floor(Math.random() * WEATHER_EFFECTS.length);            setWeather(WEATHER_EFFECTS[roll]);            setWater(false); // Reset water tracking            setRandomEvent(null);            };            const rollEncounter = () => {            const roll = Math.floor(Math.random() * RANDOM_ENCOUNTERS.length);            setRandomEvent(RANDOM_ENCOUNTERS[roll]);            };            return (            <div className="space-y-6">                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">                {/* Day Tracker */}                <Card className="flex flex-col justify-between items-center text-center py-8 bg-stone-900">                    <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-2">Expedition Day</h2>                    <span className="text-6xl font-black text-amber-500 font-serif">{day}</span>                    <div className="flex gap-4 mt-6">                    <Button onClick={() => setHexes(h => Math.max(0, h - 1))} variant="secondary">- Hex</Button>                    <div className="text-center min-w-[80px]">                        <div className="text-2xl font-bold text-stone-200">{hexes}</div>                        <div className="text-xs text-stone-500">Hexes</div>                    </div>                    <Button onClick={() => setHexes(h => h + 1)} variant="secondary">+ Hex</Button>                    </div>                </Card>                {/* Weather Widget */}                <Card className="relative overflow-hidden">                    <div className="absolute top-0 right-0 p-4 opacity-10">{weather.icon}</div>                    <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">                    <Droplets size={16} /> Weather Report                    </h2>                    <div className="flex items-start gap-4">                    <div className="p-3 bg-stone-800 rounded-lg border border-stone-600">                        {weather.icon}                    </div>                    <div>                        <h3 className="text-xl font-bold text-stone-200">{weather.name}</h3>                        <p className="text-stone-400 text-sm mt-1 leading-relaxed">{weather.desc}</p>                    </div>                    </div>                    <div className="mt-6 pt-4 border-t border-stone-800 flex items-center justify-between gap-2">                    <div className="flex items-center gap-2 flex-1">                        <input                         type="checkbox"                         checked={water}                         onChange={() => setWater(!water)}                        id="water-check"                        className="w-6 h-6 accent-blue-500 bg-stone-800 border-stone-600 rounded touch-manipulation"                         />                        <label htmlFor="water-check" className={`text-sm ${water ? 'text-blue-400' : 'text-red-400'}`}>                        {water ? "Water Consumed" : "Water NOT consumed"}                        </label>                    </div>                    <Button onClick={advanceDay} variant="primary" className="text-sm">Long Rest</Button>                    </div>                </Card>                </div>                {/* Random Encounters Section */}                <Card>                <div className="flex justify-between items-center mb-4 border-b border-stone-800 pb-2">                    <h2 className="text-stone-400 text-sm uppercase tracking-widest flex items-center gap-2">                    <Skull size={16} /> Random Encounters                    </h2>                    <Button onClick={rollEncounter} variant="secondary" className="text-xs h-8">                    Roll (1d10)                    </Button>                </div>                                {randomEvent ? (                    <div className="animate-in fade-in slide-in-from-left-2">                    <div className="flex flex-wrap items-center gap-2 mb-2">                        <h3 className="text-lg md:text-xl font-bold text-stone-200">{randomEvent.name}</h3>                        <span className={`text-xs px-2 py-0.5 rounded border ${                        randomEvent.type.includes('Combat') ? 'bg-red-900/30 text-red-300 border-red-900/50' :                         randomEvent.type.includes('Social') ? 'bg-blue-900/30 text-blue-300 border-blue-900/50' :                        'bg-amber-900/30 text-amber-300 border-amber-900/50'                        }`}>                        {randomEvent.type}                        </span>                    </div>                    <p className="text-stone-400 text-sm italic border-l-2 border-stone-700 pl-3">                        {randomEvent.desc}                    </p>                    </div>                ) : (                    <div className="text-center py-4 text-stone-600 text-sm italic">                    The jungle is quiet... for now.                    </div>                )}                </Card>                {/* Jungle Hazards Reference */}                <Card>                <h2 className="text-stone-400 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">                    <AlertTriangle size={16} /> Jungle Hazards                </h2>                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">                    {DISEASES.map((d, i) => (                    <div key={i} className="bg-stone-950/50 p-3 rounded border border-stone-800">                        <h4 className="text-amber-600 font-bold mb-1">{d.name}</h4>                        <p className="text-xs text-stone-400">{d.desc}</p>                    </div>                    ))}                </div>                </Card>            </div>            );        };        const HuntScreen = () => {            const [biome, setBiome] = useState("Floor");            const [contract, setContract] = useState(null);            const [clues, setClues] = useState([]);            const [showStats, setShowStats] = useState(false);            const [foundClues, setFoundClues] = useState([false, false, false]);            const generateContract = () => {            const monsters = ANCIENT_FOREST_ROSTER[biome];            const monster = monsters[Math.floor(Math.random() * monsters.length)];                        // Pick 3 random unique clues            const shuffledClues = [...TRACKING_CLUES].sort(() => 0.5 - Math.random());            setClues(shuffledClues.slice(0, 3));                        setContract(monster);            setShowStats(false);            setFoundClues([false, false, false]);            };            const toggleClue = (index) => {            const newFound = [...foundClues];            newFound[index] = !newFound[index];            setFoundClues(newFound);            };            const allCluesFound = foundClues.every(Boolean);            return (            <div className="space-y-6">                <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">                {Object.keys(ANCIENT_FOREST_ROSTER).map(b => (                    <button                    key={b}                    onClick={() => setBiome(b)}                    className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors flex-shrink-0 ${                        biome === b                         ? 'bg-amber-600 text-white'                         : 'bg-stone-800 text-stone-400 hover:bg-stone-700'                    }`}                    >                    {b} Zone                    </button>                ))}                </div>                <div className="text-center py-4">                <Button onClick={generateContract} className="w-full md:w-auto mx-auto px-8 py-4 text-lg">                    <Search size={20} /> Scout Area                </Button>                </div>                {contract && (                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">                                        {/* The Monster Card */}                    <Card className="lg:col-span-1 border-amber-800/50 bg-stone-900/90 relative overflow-hidden group">                        <div className="absolute top-0 left-0 w-full h-1 bg-amber-600"></div>                        <h3 className="text-stone-500 text-xs font-mono mb-1 uppercase tracking-widest">Target Identified</h3>                        <h2 className="text-3xl font-black text-stone-100 font-serif mb-2">{contract.name}</h2>                                                <div className="flex gap-2 mb-4">                        <span className="px-2 py-0.5 bg-stone-800 text-stone-300 text-xs rounded border border-stone-700">{contract.type}</span>                        <span className="px-2 py-0.5 bg-red-900/30 text-red-300 text-xs rounded border border-red-900/50">CR {contract.cr}</span>                        </div>                        <div className="p-3 bg-stone-950 rounded border border-stone-800 mb-4">                        <p className="text-amber-500 text-xs font-bold uppercase mb-1">Ecological Traits</p>                        <p className="text-stone-300 text-sm italic">{contract.traits}</p>                        </div>                        <Button variant="secondary" onClick={() => setShowStats(!showStats)} className="w-full text-xs">                            {showStats ? "Hide Stat Block" : "Reveal Stat Block (DM Only)"}                        </Button>                        {showStats && contract.stats && (                        <div className="animate-in slide-in-from-top-2">                            <StatBlock stats={contract.stats} />                        </div>                        )}                    </Card>                    {/* The Tracking Phase */}                    <Card className="lg:col-span-2">                        <div className="flex justify-between items-center mb-4">                        <h3 className="text-stone-400 text-sm uppercase tracking-widest flex items-center gap-2">                            <Compass size={16} /> Tracking Signs                        </h3>                        {allCluesFound && (                            <span className="text-green-500 text-xs font-bold uppercase tracking-wider animate-pulse flex items-center gap-1">                            <Check size={14} /> Hunt Ready                            </span>                        )}                        </div>                        <div className="space-y-3">                        {clues.map((clue, idx) => (                            <button                             key={idx}                             onClick={() => toggleClue(idx)}                            className={`w-full flex gap-4 items-start p-3 rounded transition-all border text-left group touch-manipulation active:scale-[0.99] ${                                foundClues[idx]                                 ? 'bg-amber-900/20 border-amber-800/50'                                 : 'bg-transparent border-transparent hover:bg-stone-800 hover:border-stone-700'                            }`}                            >                            <div className={`flex-shrink-0 w-8 h-8 md:w-6 md:h-6 rounded-full flex items-center justify-center text-sm md:text-xs border transition-colors ${                                foundClues[idx]                                ? 'bg-amber-600 text-stone-900 border-amber-600'                                : 'bg-stone-800 text-stone-500 border-stone-600 group-hover:border-stone-500'                            }`}>                                {foundClues[idx] ? <Check size={14} /> : idx + 1}                            </div>                            <p className={`text-sm py-1 transition-colors ${foundClues[idx] ? 'text-amber-100/70 line-through' : 'text-stone-300'}`}>                                {clue}                            </p>                            </button>                        ))}                        </div>                        <div className={`mt-6 p-4 border rounded text-center transition-colors duration-300 ${                        allCluesFound ? 'bg-green-900/20 border-green-800/50' : 'bg-amber-900/10 border-amber-900/30'                        }`}>                        <p className={`text-sm ${allCluesFound ? 'text-green-300' : 'text-amber-200'}`}>                            {allCluesFound                             ? <span className="font-bold flex items-center justify-center gap-2 flex-wrap"><Target size={16}/> PREY LOCATED! Advantage on Round 1.</span>                            : <span><span className="font-bold">DM Tip:</span> Find all 3 signs for Advantage.</span>                            }                        </p>                        </div>                    </Card>                    </div>                </div>                )}            </div>            );        };        const CarvingScreen = () => {            const [selectedType, setSelectedType] = useState("Beast");            const [loot, setLoot] = useState([]);            const [dc, setDc] = useState(10);            const rollLoot = () => {            const parts = MONSTER_PARTS[selectedType];            const rolled = [];            const count = Math.floor(Math.random() * 2) + 1; // 1-2 items            for (let i = 0; i < count; i++) {                if (parts) {                    rolled.push(parts[Math.floor(Math.random() * parts.length)]);                }            }            setLoot(rolled);            setDc(10 + Math.floor(Math.random() * 5)); // DC 10-15            };            return (            <div className="max-w-2xl mx-auto space-y-8">                <Card className="text-center py-8">                <Bone className="w-12 h-12 text-stone-600 mx-auto mb-4" />                <h2 className="text-2xl font-serif text-stone-200 mb-6">Field Carving Station</h2>                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-8 px-4">                    {Object.keys(MONSTER_PARTS).map(type => (                    <button                        key={type}                        onClick={() => setSelectedType(type)}                        className={`p-3 md:p-2 rounded text-sm border transition-all ${                        selectedType === type                         ? 'bg-amber-900/50 border-amber-600 text-amber-100'                         : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-750'                        }`}                    >                        {type}                    </button>                    ))}                </div>                <Button onClick={rollLoot} variant="primary" className="mx-auto w-full md:w-1/2">                    Attempt Carve (Survival Check)                </Button>                </Card>                {loot.length > 0 && (                <Card className="animate-in zoom-in-95 duration-200 border-green-900/30 bg-stone-900">                    <div className="flex justify-between items-center mb-4 border-b border-stone-800 pb-2">                    <h3 className="text-green-500 font-bold uppercase tracking-wide text-sm">Carving Results</h3>                    <span className="text-xs text-stone-500 font-mono">DC {dc} Survival</span>                    </div>                                        <ul className="space-y-3">                    {loot.map((item, idx) => (                        <li key={idx} className="flex items-center gap-3">                        <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>                        <span className="text-stone-200 text-lg">{item}</span>                        </li>                    ))}                    </ul>                                        <div className="mt-6 text-xs text-stone-500 bg-stone-950 p-3 rounded">                    <strong>Crafting Note:</strong> Items can be brought to a craftsman in Port Nyanzaru.                     3 Common parts = 1 Uncommon Magic Item. 1 Rare part = Key ingredient for Rare Item.                    </div>                </Card>                )}            </div>            );        };        const ChultbrewScreen = () => {            const [subTab, setSubTab] = useState('enemies');                        // Lazy initialization for localStorage            const [customEnemies, setCustomEnemies] = useState(() => {                try {                    const saved = localStorage.getItem('chult_custom_enemies');                    return saved ? JSON.parse(saved) : [                        { name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }                    ];                } catch (e) {                    console.error("Failed to load enemies from local storage", e);                    return [{ name: "Albino Death Dog", cr: "2", type: "Beast", notes: "Attacks cause necrosis." }];                }            });            const [customItems, setCustomItems] = useState(() => {                try {                    const saved = localStorage.getItem('chult_custom_items');                    return saved ? JSON.parse(saved) : [                        { name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }                    ];                } catch (e) {                    console.error("Failed to load items from local storage", e);                    return [{ name: "Pterafolk Glider", type: "Wondrous Item", effect: "Glide 60ft when falling." }];                }            });            // Effects to save data            useEffect(() => {                localStorage.setItem('chult_custom_enemies', JSON.stringify(customEnemies));            }, [customEnemies]);            useEffect(() => {                localStorage.setItem('chult_custom_items', JSON.stringify(customItems));            }, [customItems]);            // Form states            const [enemyForm, setEnemyForm] = useState({ name: '', cr: '', type: 'Beast', notes: '' });            const [itemForm, setItemForm] = useState({ name: '', type: 'Weapon', effect: '' });            const addEnemy = () => {            if (!enemyForm.name) return;            setCustomEnemies([...customEnemies, enemyForm]);            setEnemyForm({ name: '', cr: '', type: 'Beast', notes: '' });            };            const addItem = () => {            if (!itemForm.name) return;            setCustomItems([...customItems, itemForm]);            setItemForm({ name: '', type: 'Weapon', effect: '' });            };            const removeEnemy = (idx) => setCustomEnemies(customEnemies.filter((_, i) => i !== idx));            const removeItem = (idx) => setCustomItems(customItems.filter((_, i) => i !== idx));            return (            <div className="space-y-6">                <div className="flex gap-2 border-b border-stone-800 pb-2">                <button                     onClick={() => setSubTab('enemies')}                    className={`flex-1 px-4 py-3 md:py-2 font-bold text-sm rounded-t-lg transition-colors ${                    subTab === 'enemies' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'                    }`}                >                    <div className="flex items-center justify-center gap-2"><Skull size={16}/> Bestiary</div>                </button>                <button                     onClick={() => setSubTab('items')}                    className={`flex-1 px-4 py-3 md:py-2 font-bold text-sm rounded-t-lg transition-colors ${                    subTab === 'items' ? 'bg-stone-800 text-amber-500' : 'text-stone-500 hover:text-stone-300'                    }`}                >                    <div className="flex items-center justify-center gap-2"><Shield size={16}/> Armory</div>                </button>                </div>                {subTab === 'enemies' ? (                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">                    {/* Add Enemy Form */}                    <Card className="h-fit">                    <h3 className="text-stone-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">                        <Plus size={14}/> Add Homebrew Enemy                    </h3>                    <div className="space-y-3">                        <input                         className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"                        placeholder="Name"                        value={enemyForm.name}                        onChange={e => setEnemyForm({...enemyForm, name: e.target.value})}                        />                        <div className="flex gap-2">                        <input                             className="w-1/3 bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"                            placeholder="CR"                            value={enemyForm.cr}                            onChange={e => setEnemyForm({...enemyForm, cr: e.target.value})}                        />                        <select                             className="w-2/3 bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"                            value={enemyForm.type}                            onChange={e => setEnemyForm({...enemyForm, type: e.target.value})}                        >                            {["Beast", "Monstrosity", "Undead", "Humanoid", "Plant", "Dragon", "Construct", "Fiend"].map(t => <option key={t}>{t}</option>)}                        </select>                        </div>                        <textarea                         className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"                        placeholder="Short notes/abilities..."                        value={enemyForm.notes}                        onChange={e => setEnemyForm({...enemyForm, notes: e.target.value})}                        />                        <Button onClick={addEnemy} className="w-full text-sm">Add to Roster</Button>                    </div>                    </Card>                    {/* Enemy List */}                    <div className="md:col-span-2 space-y-3">                    {customEnemies.length === 0 && <div className="text-stone-600 text-center py-8 italic">No homebrew enemies yet.</div>}                    {customEnemies.map((enemy, idx) => (                        <div key={idx} className="bg-stone-900 border border-stone-800 p-4 rounded flex justify-between items-start group hover:border-stone-700 transition-colors">                        <div>                            <div className="flex items-center gap-2 mb-1">                            <h4 className="font-bold text-lg text-stone-200">{enemy.name}</h4>                            <span className="text-xs bg-red-900/30 text-red-300 px-1.5 rounded border border-red-900/50">CR {enemy.cr}</span>                            <span className="text-xs text-stone-500">{enemy.type}</span>                            </div>                            <p className="text-stone-400 text-sm italic">{enemy.notes}</p>                        </div>                        <button onClick={() => removeEnemy(idx)} className="text-stone-600 hover:text-red-500 transition-colors p-2">                            <Trash2 size={16} />                        </button>                        </div>                    ))}                    </div>                </div>                ) : (                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">                    {/* Add Item Form */}                    <Card className="h-fit">                    <h3 className="text-stone-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">                        <Plus size={14}/> Add Homebrew Item                    </h3>                    <div className="space-y-3">                        <input                         className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"                        placeholder="Name"                        value={itemForm.name}                        onChange={e => setItemForm({...itemForm, name: e.target.value})}                        />                        <select                         className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none"                        value={itemForm.type}                        onChange={e => setItemForm({...itemForm, type: e.target.value})}                        >                        {["Weapon", "Armor", "Potion", "Wondrous Item", "Material"].map(t => <option key={t}>{t}</option>)}                        </select>                        <textarea                         className="w-full bg-stone-950 border border-stone-700 rounded p-3 md:p-2 text-base md:text-sm text-stone-200 focus:border-amber-600 outline-none h-20 resize-none"                        placeholder="Effect/Description..."                        value={itemForm.effect}                        onChange={e => setItemForm({...itemForm, effect: e.target.value})}                        />                        <Button onClick={addItem} className="w-full text-sm">Forge Item</Button>                    </div>                    </Card>                    {/* Item List */}                    <div className="md:col-span-2 space-y-3">                    {customItems.length === 0 && <div className="text-stone-600 text-center py-8 italic">No homebrew items yet.</div>}                    {customItems.map((item, idx) => (                        <div key={idx} className="bg-stone-900 border border-stone-800 p-4 rounded flex justify-between items-start group hover:border-stone-700 transition-colors">                        <div>                            <div className="flex items-center gap-2 mb-1">                            <h4 className="font-bold text-lg text-amber-500">{item.name}</h4>                            <span className="text-xs bg-stone-800 text-stone-400 px-1.5 rounded">{item.type}</span>                            </div>                            <p className="text-stone-300 text-sm">{item.effect}</p>                        </div>                        <button onClick={() => removeItem(idx)} className="text-stone-600 hover:text-red-500 transition-colors p-2">                            <Trash2 size={16} />                        </button>                        </div>                    ))}                    </div>                </div>                )}            </div>            );        };        // --- MAIN APP ---        const App = () => {            const [activeTab, setActiveTab] = useState('expedition');            const [isSidebarOpen, setSidebarOpen] = useState(false);            const navItems = [            { id: 'expedition', icon: <Map size={18} />, label: 'Expedition' },            { id: 'hunt', icon: <Target size={18} />, label: 'The Hunt' },            { id: 'guide', icon: <BookOpen size={18} />, label: 'Tomb Guide' },            { id: 'carving', icon: <Sword size={18} />, label: 'Carving' },            { id: 'chultbrew', icon: <Beaker size={18} />, label: 'Chultbrew' },            { id: 'updates', icon: <History size={18} />, label: 'Updates' },            ];            return (            <div className="min-h-screen bg-stone-950 text-stone-200 font-sans selection:bg-amber-900 selection:text-white flex flex-col md:flex-row">                {/* Mobile Header */}                <div className="md:hidden flex items-center justify-between p-4 bg-stone-900 border-b border-stone-800 sticky top-0 z-20 w-full">                <h1 className="text-amber-500 font-bold font-serif tracking-wider">CHULT HUNTER</h1>                <button onClick={() => setSidebarOpen(true)} className="p-2 text-stone-400 hover:text-stone-200 active:scale-95 transition-transform">                    <Menu size={24} />                </button>                </div>                {/* Mobile Sidebar Overlay */}                {isSidebarOpen && (                    <div                         className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm transition-opacity"                        onClick={() => setSidebarOpen(false)}                    ></div>                )}                {/* Sidebar Navigation */}                <aside className={`                    fixed inset-y-0 left-0 z-40 w-72 bg-stone-900 border-r border-stone-800                     transform transition-transform duration-300 ease-out md:translate-x-0 md:static md:h-screen md:w-64                    ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}                `}>                    <div className="p-6">                        <div className="flex justify-between items-start">                            <div>                                <h1 className="text-2xl font-black font-serif text-amber-500 tracking-wider">NYANZARU<br/>LOGBOOK</h1>                                <p className="text-xs text-stone-500 mt-2 uppercase tracking-widest">Monster Hunter Division</p>                            </div>                            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-stone-400 p-2 hover:text-stone-200 active:scale-95 transition-transform">                                <X size={24} />                            </button>                        </div>                    </div>                    <nav className="px-4 space-y-2 mt-4">                    {navItems.map(item => (                        <button                        key={item.id}                        onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}                        className={`w-full flex items-center gap-4 px-4 py-4 md:py-3 rounded-lg transition-all duration-200 ${                            activeTab === item.id                             ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50'                             : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'                        }`}                        >                        {item.icon}                        <span className="font-bold text-base md:text-sm">{item.label}</span>                        </button>                    ))}                    </nav>                                        <div className="absolute bottom-0 left-0 w-full p-4 border-t border-stone-800 bg-stone-900">                    <div className="flex items-center gap-3 text-xs text-stone-500">                        <Backpack size={16} />                        <span>Inventory Cap: <span className="text-stone-300">Light</span></span>                    </div>                    </div>                </aside>                {/* Main Content Area */}                <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-65px)] md:h-screen scrollbar-hide w-full">                    <div className="max-w-4xl mx-auto pb-20 md:pb-0">                    {activeTab === 'expedition' && <ExpeditionScreen />}                    {activeTab === 'hunt' && <HuntScreen />}                    {activeTab === 'guide' && <TombGuideScreen />}                    {activeTab === 'carving' && <CarvingScreen />}                    {activeTab === 'chultbrew' && <ChultbrewScreen />}                    {activeTab === 'updates' && <ChangelogScreen />}                    </div>                </main>            </div>            );        };        const root = createRoot(document.getElementById('root'));        root.render(<App />);    </script></body></html>
